@@ -1,0 +1,18 @@
+xxx_service // 根目录
+  api  -> api_docs.py // 存放API文档
+  config
+  models    // 存放枚举
+  routes -> xxx_routes.py // 接口
+  schemas
+  service -> xx_service.py // service层
+  utils -> 工具
+  main.py // 引入格式如下
+    from .routes.xxxx_routes import router
+
+    # Export the router for use in the main application
+    __all__ = ['router']
+shared
+  models  模型
+
+  from shared.exceptions import BusinessException
+  新建的模块需要在shared/models/ 建相应的模型， 并在__init__.py引入

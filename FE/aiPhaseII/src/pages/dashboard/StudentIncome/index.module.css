@@ -1,0 +1,121 @@
+.container {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  background: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header h2 {
+  margin: 0;
+  color: #1890ff;
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.infoCard {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.infoCard .ant-card-body {
+  padding: 20px;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.emptyState p {
+  margin: 16px 0;
+  font-size: 16px;
+}
+
+.description {
+  line-height: 1.8;
+}
+
+.description p {
+  margin-bottom: 12px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+  
+  .header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .header h2 {
+    font-size: 20px;
+  }
+}
+
+/* 统计卡片样式优化 */
+.content .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.content .ant-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+/* 统计数值样式 */
+.content .ant-statistic-content {
+  font-weight: 600;
+}
+
+.content .ant-statistic-title {
+  color: #666;
+  font-weight: 500;
+}
+
+/* 警告框样式 */
+.container .ant-alert {
+  border-radius: 8px;
+}
+
+/* 按钮样式 */
+.container .ant-btn {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.container .ant-btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+}
+
+.container .ant-btn-primary:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+}

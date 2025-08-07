@@ -1,0 +1,44 @@
+# 使用阿里云镜像源
+--index-url https://mirrors.aliyun.com/pypi/simple/
+--trusted-host mirrors.aliyun.com
+
+# 核心Web框架
+fastapi==0.95.1
+uvicorn==0.22.0
+
+# 数据库相关
+sqlalchemy==2.0.12
+alembic==1.10.4
+PyMySQL==1.1.0
+
+# 数据验证和序列化
+pydantic[email]==1.10.7
+email-validator
+
+# 认证和安全
+python-jose[cryptography]
+passlib[bcrypt]
+pyjwt==2.7.0
+bcrypt==4.0.1
+cryptography>=41.0.0
+
+# 文件上传和表单处理
+python-multipart==0.0.6
+
+# 缓存
+redis>=4.5.5
+
+# 配置管理
+python-dotenv==1.0.0
+
+# 时间处理
+arrow==1.3.0
+
+# 虚拟订单系统依赖
+nanoid==2.0.0
+pandas>=1.5.0
+openpyxl>=3.0.0
+
+# 测试依赖
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

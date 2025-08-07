@@ -1,0 +1,44 @@
+# 虚拟客服API系统缺少的依赖包
+# 请使用以下命令安装这些依赖：
+
+pip3 install \
+  PyMySQL==1.1.0 \
+
+  email-validator \
+  python-jose[cryptography] \
+  passlib[bcrypt] \
+  pyjwt==2.7.0 \
+  bcrypt==4.0.1 \
+  cryptography>=41.0.0 \
+  python-multipart==0.0.6 \
+  redis>=4.5.5 \
+  python-dotenv==1.0.0 \
+  arrow==1.3.0 \
+  nanoid==2.0.0 \
+  pytest-asyncio>=0.21.0
+
+# 或者分别安装：
+# pip3 install PyMySQL==1.1.0
+
+# pip3 install email-validator
+# pip3 install python-jose[cryptography]
+# pip3 install passlib[bcrypt]
+# pip3 install pyjwt==2.7.0
+# pip3 install bcrypt==4.0.1
+# pip3 install cryptography>=41.0.0
+# pip3 install python-multipart==0.0.6
+# pip3 install redis>=4.5.5
+# pip3 install python-dotenv==1.0.0
+# pip3 install arrow==1.3.0
+# pip3 install nanoid==2.0.0
+# pip3 install pytest-asyncio>=0.21.0
+
+# 测试结果：
+# ✅ 虚拟客服4个API接口测试全部通过
+# ✅ API接口格式和数据结构验证正确
+# 
+# API接口列表：
+# 1. POST /api/virtual-orders/customer-service - 创建虚拟客服
+# 2. GET /api/virtual-orders/customer-service - 获取虚拟客服列表  
+# 3. PUT /api/virtual-orders/customer-service/{role_id} - 更新虚拟客服信息
+# 4. DELETE /api/virtual-orders/customer-service/{role_id} - 删除虚拟客服

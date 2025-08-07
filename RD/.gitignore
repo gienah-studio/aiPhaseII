@@ -1,0 +1,42 @@
+# compiled output
+*.pyc
+
+# environment variables
+.env
+
+# logs
+logs/*
+
+# database
+*.db
+
+# virtual environment
+venv/bin
+venv/include
+venv/lib
+venv/lib64
+venv/libx86_64-linux-gnu
+venv/pyvenv.cfg
+venv/share
+venv/ssl
+
+/scripts/副本导入模版（员工与企业）.xlsx
+build
+dist
+
+# Private individual user cursor rules
+.cursor/rules/_*.mdc
+.cursorignore
+.cursorindexingignore
+.cursor
+/docs
+/xnotes
+db_update_flow.py
+test_pdf.py
+test_richtext_pdf.py
+1.1 普通版本---2024年采购合同-.pdf
+purchase_contract.sql
+purchase_intention.sql
+.vscode
+.idea
+# notes

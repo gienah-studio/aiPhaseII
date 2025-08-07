@@ -1,0 +1,2187 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "ai二期",
+    "description": "",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "认证服务"
+    },
+    {
+      "name": "虚拟订单服务"
+    }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "用户登录",
+        "deprecated": false,
+        "description": "用户登录并返回访问令牌",
+        "operationId": "login_api_auth_login_post",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"登录成功\",\n            \"data\": {\n                \"access_token\": \"访问令牌\",\n                \"token_type\": \"令牌类型\",\n                \"expires_in\": \"过期时间(秒)\"\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "退出登录",
+        "deprecated": false,
+        "description": "使当前用户登录的令牌失效",
+        "operationId": "logout_api_auth_logout_post",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": " ",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/LogoutRequest"
+                  }
+                ],
+                "default": {}
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"退出登录成功\",\n            \"data\": null\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseSchema"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "summary": "获取个人信息",
+        "deprecated": false,
+        "description": "获取当前登录用户的详细信息",
+        "operationId": "get_profile_api_auth_profile_get",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"获取成功\",\n            \"data\": {\n                \"id\": \"用户ID\",\n                \"username\": \"用户名\",\n                \"realName\": \"真实姓名\",\n                \"phone\": \"手机号\",\n                \"email\": \"邮箱\",\n                \"enterpriseId\": \"企业ID\",\n                \"enterpriseName\": \"企业名称\",\n                \"enterpriseRegionCode\": \"企业所在地区编码\",\n                \"enterpriseRegionName\": \"企业所在地区名称\",\n                \"enterpriseAddress\": \"企业详细地址\",\n                \"role\": \"角色\",\n                \"status\": \"状态(0:待审核,1:正常,2:禁用)\",\n                \"avatar\": \"头像URL\",\n                \"createdAt\": \"创建时间\",\n                \"updatedAt\": \"更新时间\"\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "put": {
+        "summary": "更新个人信息",
+        "deprecated": false,
+        "description": "更新当前登录用户的个人信息（姓名、邮箱、头像），手机号作为登录账号不可修改",
+        "operationId": "update_user_info_api_auth_profile_put",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserInfoRequest"
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"更新成功\",\n            \"data\": {\n                \"id\": \"用户ID\",\n                \"name\": \"用户姓名\",\n                \"account\": \"账号\",\n                \"phone\": \"手机号\",\n                \"email\": \"邮箱\",\n                \"avatar\": \"头像URL\",\n                \"enterpriseId\": \"企业ID\",\n                \"enterpriseName\": \"企业名称\",\n                \"enterpriseRegionCode\": \"企业所在地区编码\",\n                \"enterpriseRegionName\": \"企业所在地区名称\",\n                \"enterpriseAddress\": \"企业详细地址\",\n                \"departmentId\": \"部门ID\",\n                \"departmentName\": \"部门名称\",\n                \"userType\": \"用户类型\",\n                \"status\": \"状态\"\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/upload": {
+      "post": {
+        "summary": "上传文件",
+        "deprecated": false,
+        "description": "上传文件并返回访问URL",
+        "operationId": "upload_file_api_auth_upload_post",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"上传成功\",\n            \"data\": {\n                \"url\": \"文件访问URL\",\n                \"filename\": \"原始文件名\",\n                \"content_type\": \"文件类型\"\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/changePassword": {
+      "post": {
+        "summary": "修改密码",
+        "deprecated": false,
+        "description": "使用原密码修改为新密码",
+        "operationId": "change_password_api_auth_changePassword_post",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"密码修改成功\",\n            \"data\": null\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseSchema"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/resetPassword": {
+      "post": {
+        "summary": "重置密码",
+        "deprecated": false,
+        "description": "重置用户密码为123456",
+        "operationId": "reset_password_api_auth_resetPassword_post",
+        "tags": [
+          "认证服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseSchema"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/import/studentSubsidy": {
+      "post": {
+        "summary": "导入学生补贴表",
+        "deprecated": false,
+        "description": "上传Excel文件，导入学生补贴信息并自动生成虚拟任务",
+        "operationId": "import_student_subsidy_api_virtualOrders_import_studentSubsidy_post",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"导入成功\",\n            \"data\": {\n                \"import_batch\": \"批次号\",\n                \"total_students\": 10,\n                \"total_subsidy\": 2000.00,\n                \"generated_tasks\": 45\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/import/customerService": {
+      "post": {
+        "summary": "导入专用客服",
+        "deprecated": false,
+        "description": "上传Excel文件，导入专用客服信息",
+        "operationId": "import_customer_service_api_virtualOrders_import_customerService_post",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"导入成功\",\n            \"data\": {\n                \"total_imported\": 5,\n                \"failed_count\": 0\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/stats": {
+      "get": {
+        "summary": "获取虚拟订单统计",
+        "deprecated": false,
+        "description": "获取虚拟订单的统计信息",
+        "operationId": "get_virtual_order_stats_api_virtualOrders_stats_get",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"获取成功\",\n            \"data\": {\n                \"total_students\": 100,\n                \"total_subsidy\": 20000.00,\n                \"total_tasks_generated\": 450,\n                \"total_tasks_completed\": 320,\n                \"completion_rate\": 71.11\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/studentPools": {
+      "get": {
+        "summary": "获取学生补贴池列表",
+        "deprecated": false,
+        "description": "分页获取学生补贴池信息",
+        "operationId": "get_student_pools_api_virtualOrders_studentPools_get",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "title": "Page",
+              "minimum": 1,
+              "type": "integer",
+              "description": "页码",
+              "default": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "title": "Size",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "description": "每页数量",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "状态过滤",
+            "required": false,
+            "schema": {
+              "title": "Status",
+              "type": "string",
+              "description": "状态过滤"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"获取成功\",\n            \"data\": {\n                \"items\": [...],\n                \"total\": 100,\n                \"page\": 1,\n                \"size\": 20\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/reallocate/{studentId}": {
+      "post": {
+        "summary": "重新分配学生任务",
+        "deprecated": false,
+        "description": "手动触发学生剩余金额的任务重新分配",
+        "operationId": "reallocate_student_tasks_api_virtualOrders_reallocate__student_id__post",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "example": 0,
+            "schema": {
+              "title": "Student Id",
+              "type": "integer"
+            }
+          },
+          {
+            "name": "studentId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"重新分配成功\",\n            \"data\": {\n                \"student_id\": 123,\n                \"remaining_amount\": 150.00,\n                \"new_tasks_count\": 8\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/customerService": {
+      "get": {
+        "summary": "获取虚拟客服列表",
+        "deprecated": false,
+        "description": "分页获取虚拟订单专用客服列表",
+        "operationId": "get_virtual_customer_services_api_virtualOrders_customerService_get",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "title": "Page",
+              "minimum": 1,
+              "type": "integer",
+              "description": "页码",
+              "default": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "title": "Size",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "description": "每页数量",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"获取成功\",\n            \"data\": {\n                \"items\": [...],\n                \"total\": 10,\n                \"page\": 1,\n                \"size\": 20\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "创建虚拟客服",
+        "deprecated": false,
+        "description": "创建虚拟订单专用客服账号",
+        "operationId": "create_virtual_customer_service_api_virtualOrders_customerService_post",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VirtualCustomerServiceCreate"
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"创建成功\",\n            \"data\": {\n                \"id\": 123,\n                \"user_id\": 456,\n                \"name\": \"客服姓名\",\n                \"account\": \"客服账号\",\n                \"level\": \"6\",\n                \"status\": \"active\",\n                \"initial_password\": \"123456\"\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/customerService/{csId}": {
+      "put": {
+        "summary": "更新虚拟客服信息",
+        "deprecated": false,
+        "description": "更新虚拟订单专用客服的基本信息",
+        "operationId": "update_virtual_customer_service_api_virtualOrders_customerService__cs_id__put",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "cs_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "example": 0,
+            "schema": {
+              "title": "Cs Id",
+              "type": "integer"
+            }
+          },
+          {
+            "name": "csId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VirtualCustomerServiceUpdate"
+              },
+              "example": ""
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"更新成功\",\n            \"data\": {\n                \"id\": 456,\n                \"name\": \"新姓名\",\n                \"account\": \"客服账号\",\n                \"status\": \"active\",\n                \"updated_fields\": [\"name\", \"status\"]\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "删除虚拟客服",
+        "deprecated": false,
+        "description": "删除虚拟订单专用客服（软删除）",
+        "operationId": "delete_virtual_customer_service_api_virtualOrders_customerService__cs_id__delete",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "cs_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "example": 0,
+            "schema": {
+              "title": "Cs Id",
+              "type": "integer"
+            }
+          },
+          {
+            "name": "csId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"删除成功\",\n            \"data\": {\n                \"id\": 456,\n                \"name\": \"客服姓名\",\n                \"account\": \"客服账号\",\n                \"deleted\": true\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/studentIncome/export": {
+      "get": {
+        "summary": "导出学生收入数据",
+        "deprecated": false,
+        "description": "导出学生收入统计数据为Excel文件，用于后续补贴金额设置",
+        "operationId": "export_student_income_api_virtualOrders_studentIncome_export_get",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "开始日期",
+            "required": false,
+            "schema": {
+              "title": "Start Date",
+              "type": "string",
+              "description": "开始日期",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "结束日期",
+            "required": false,
+            "schema": {
+              "title": "End Date",
+              "type": "string",
+              "description": "结束日期",
+              "format": "date"
+            }
+          },
+          {
+            "name": "student_ids",
+            "in": "query",
+            "description": "学生ID列表，多个ID用逗号分隔",
+            "required": false,
+            "schema": {
+              "title": "Student Ids",
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "学生ID列表，多个ID用逗号分隔"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\n        返回Excel文件下载:\n        - Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\n        - 包含学生收入统计和使用说明两个工作表\n        - 补贴金额列供用户填写后重新导入\n        ",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/virtualOrders/studentIncome/summary": {
+      "get": {
+        "summary": "获取学生收入汇总",
+        "deprecated": false,
+        "description": "获取学生收入的汇总统计信息",
+        "operationId": "get_student_income_summary_api_virtualOrders_studentIncome_summary_get",
+        "tags": [
+          "虚拟订单服务"
+        ],
+        "parameters": [
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "开始日期",
+            "required": false,
+            "schema": {
+              "title": "Start Date",
+              "type": "string",
+              "description": "开始日期",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "结束日期",
+            "required": false,
+            "schema": {
+              "title": "End Date",
+              "type": "string",
+              "description": "结束日期",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\n        返回数据结构:\n        ```json\n        {\n            \"code\": 200,\n            \"message\": \"获取成功\",\n            \"data\": {\n                \"total_students\": 100,\n                \"total_tasks\": 500,\n                \"total_amount\": 25000.00,\n                \"completed_tasks\": 450,\n                \"completed_amount\": 22500.00,\n                \"completion_rate\": 90.0,\n                \"export_time\": \"2023-12-01 10:30:00\"\n            }\n        }\n        ```\n        ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "deprecated": false,
+        "description": "",
+        "operationId": "root__get",
+        "tags": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BodyUploadFileApiAuthUploadPost": {
+        "title": "Body_upload_file_api_auth_upload_post",
+        "required": [
+          "file"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "BodyImportCustomerServiceApiVirtualordersImportCustomerservicePost": {
+        "title": "Body_import_customer_service_api_virtualOrders_import_customerService_post",
+        "required": [
+          "file"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "ChangePasswordRequest": {
+        "title": "ChangePasswordRequest",
+        "required": [
+          "oldPassword",
+          "newPassword",
+          "newPasswordConfirm"
+        ],
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "title": "Oldpassword",
+            "type": "string",
+            "description": "原密码"
+          },
+          "newPassword": {
+            "title": "Newpassword",
+            "maxLength": 16,
+            "minLength": 6,
+            "type": "string",
+            "description": "新密码"
+          },
+          "newPasswordConfirm": {
+            "title": "Newpasswordconfirm",
+            "type": "string",
+            "description": "确认新密码"
+          }
+        }
+      },
+      "BodyImportStudentSubsidyApiVirtualordersImportStudentsubsidyPost": {
+        "title": "Body_import_student_subsidy_api_virtualOrders_import_studentSubsidy_post",
+        "required": [
+          "file"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "FileUploadResponse": {
+        "title": "FileUploadResponse",
+        "required": [
+          "url",
+          "filename"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string",
+            "description": "文件访问URL"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string",
+            "description": "原始文件名"
+          },
+          "contentType": {
+            "title": "Content Type",
+            "type": "string",
+            "description": "文件类型"
+          }
+        }
+      },
+      "HTTPValidationError": {
+        "title": "HTTPValidationError",
+        "type": "object",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "title": "LoginRequest",
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "title": "Username",
+            "type": "string",
+            "description": "账号"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string",
+            "description": "密码"
+          }
+        }
+      },
+      "CustomerServiceImportResponse": {
+        "title": "CustomerServiceImportResponse",
+        "type": "object",
+        "properties": {
+          "totalImported": {
+            "title": "Total Imported",
+            "type": "integer",
+            "description": "成功导入数量"
+          },
+          "failedCount": {
+            "title": "Failed Count",
+            "type": "integer",
+            "description": "失败数量"
+          },
+          "failedDetails": {
+            "title": "Failed Details",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "失败详情"
+          }
+        },
+        "description": "专用客服导入响应"
+      },
+      "LogoutRequest": {
+        "title": "LogoutRequest",
+        "type": "object",
+        "properties": {}
+      },
+      "ModulePermissionInfo": {
+        "title": "ModulePermissionInfo",
+        "required": [
+          "code",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "moduleId": {
+            "title": "Module Id",
+            "type": "integer",
+            "description": "模块ID"
+          },
+          "moduleName": {
+            "title": "Module Name",
+            "type": "string",
+            "description": "模块名称"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string",
+            "description": "模块代码"
+          },
+          "type": {
+            "title": "Type",
+            "type": "integer",
+            "description": "类型(0:目录,1:菜单)"
+          },
+          "parentId": {
+            "title": "Parent Id",
+            "type": "integer",
+            "description": "父模块ID"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string",
+            "description": "前端路由路径"
+          },
+          "component": {
+            "title": "Component",
+            "type": "string",
+            "description": "前端组件路径"
+          },
+          "redirect": {
+            "title": "Redirect",
+            "type": "string",
+            "description": "重定向路径"
+          },
+          "icon": {
+            "title": "Icon",
+            "type": "string",
+            "description": "图标"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "boolean",
+            "description": "是否隐藏(false:显示,true:隐藏)",
+            "default": false
+          },
+          "keepAlive": {
+            "title": "Keep Alive",
+            "type": "boolean",
+            "description": "是否缓存(false:不缓存,true:缓存)",
+            "default": false
+          },
+          "meta": {
+            "title": "Meta",
+            "type": "object",
+            "description": "路由元数据",
+            "properties": {}
+          },
+          "operations": {
+            "title": "Operations",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperationInfo"
+            },
+            "description": "操作权限列表",
+            "default": []
+          },
+          "children": {
+            "title": "Children",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModulePermissionInfo"
+            },
+            "description": "子模块列表",
+            "default": []
+          }
+        },
+        "description": "模块权限信息"
+      },
+      "OperationInfo": {
+        "title": "OperationInfo",
+        "required": [
+          "id",
+          "name",
+          "code",
+          "checked"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer",
+            "description": "操作ID"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string",
+            "description": "操作名称"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string",
+            "description": "操作代码"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "boolean",
+            "description": "是否拥有该权限"
+          }
+        },
+        "description": "操作权限信息"
+      },
+      "ResetPasswordRequest": {
+        "title": "ResetPasswordRequest",
+        "type": "object",
+        "properties": {
+          "userId": {
+            "title": "User Id",
+            "type": "integer",
+            "description": "用户ID"
+          }
+        }
+      },
+      "ResponseSchema": {
+        "title": "ResponseSchema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "title": "Data"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaFileuploadresponse": {
+        "title": "ResponseSchema[FileUploadResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/FileUploadResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaSimpletokenresponse": {
+        "title": "ResponseSchema[SimpleTokenResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/SimpleTokenResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ReallocateTasksResponse": {
+        "title": "ReallocateTasksResponse",
+        "type": "object",
+        "properties": {
+          "studentId": {
+            "title": "Student Id",
+            "type": "integer"
+          },
+          "remainingAmount": {
+            "title": "Remaining Amount",
+            "type": "number"
+          },
+          "newTasksCount": {
+            "title": "New Tasks Count",
+            "type": "integer"
+          }
+        },
+        "description": "重新分配任务响应"
+      },
+      "ResponseSchemaUserresponse": {
+        "title": "ResponseSchema[UserResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "SimpleTokenResponse": {
+        "title": "SimpleTokenResponse",
+        "required": [
+          "accessToken"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "title": "Accesstoken",
+            "type": "string"
+          }
+        }
+      },
+      "UpdateUserInfoRequest": {
+        "title": "UpdateUserInfoRequest",
+        "type": "object",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string",
+            "description": "用户姓名"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string",
+            "description": "邮箱",
+            "format": "email"
+          },
+          "avatar": {
+            "title": "Avatar",
+            "type": "string",
+            "description": "头像URL"
+          }
+        }
+      },
+      "ResponseSchemaCustomerserviceimportresponse": {
+        "title": "ResponseSchema[CustomerServiceImportResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/CustomerServiceImportResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "UserResponse": {
+        "title": "UserResponse",
+        "required": [
+          "id",
+          "account",
+          "role",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer",
+            "description": "用户ID"
+          },
+          "enterpriseId": {
+            "title": "Enterprise Id",
+            "type": "integer",
+            "description": "所属企业ID"
+          },
+          "account": {
+            "title": "Account",
+            "type": "string",
+            "description": "登录账号"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string",
+            "description": "用户真实姓名"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string",
+            "description": "手机号"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string",
+            "description": "邮箱"
+          },
+          "avatar": {
+            "title": "Avatar",
+            "type": "string",
+            "description": "头像URL"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string",
+            "description": "平台角色: admin-管理员, provider-API提供者, consumer-API使用者"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string",
+            "description": "账户状态: pending_approval-待审核, active-启用, rejected-拒绝, suspended-禁用"
+          },
+          "remark": {
+            "title": "Remark",
+            "type": "string",
+            "description": "备注"
+          },
+          "positionName": {
+            "title": "Position Name",
+            "type": "string",
+            "description": "职位名称"
+          },
+          "enterpriseName": {
+            "title": "Enterprise Name",
+            "type": "string",
+            "description": "企业名称"
+          },
+          "enterpriseRegionCode": {
+            "title": "Enterprise Region Code",
+            "type": "string",
+            "description": "企业所在地区编码"
+          },
+          "enterpriseRegionName": {
+            "title": "Enterprise Region Name",
+            "type": "string",
+            "description": "企业所在地区名称"
+          },
+          "enterpriseAddress": {
+            "title": "Enterprise Address",
+            "type": "string",
+            "description": "企业详细地址"
+          },
+          "createTime": {
+            "title": "Create Time",
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updateTime": {
+            "title": "Update Time",
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          },
+          "permissions": {
+            "title": "Permissions",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModulePermissionInfo"
+            },
+            "description": "用户权限列表",
+            "default": []
+          },
+          "roles": {
+            "title": "Roles",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "description": "用户角色列表",
+            "default": []
+          }
+        },
+        "description": "用户响应模型"
+      },
+      "ValidationError": {
+        "title": "ValidationError",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "loc": {
+            "title": "Location",
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        }
+      },
+      "ResponseSchemaReallocatetasksresponse": {
+        "title": "ResponseSchema[ReallocateTasksResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReallocateTasksResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaStudentpoollistresponse": {
+        "title": "ResponseSchema[StudentPoolListResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/StudentPoolListResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaStudentincomesummaryresponse": {
+        "title": "ResponseSchema[StudentIncomeSummaryResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/StudentIncomeSummaryResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaStudentsubsidyimportresponse": {
+        "title": "ResponseSchema[StudentSubsidyImportResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/StudentSubsidyImportResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaVirtualorderstatsresponse": {
+        "title": "ResponseSchema[VirtualOrderStatsResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/VirtualOrderStatsResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaVirtualcustomerservicedeleteresponse": {
+        "title": "ResponseSchema[VirtualCustomerServiceDeleteResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/VirtualCustomerServiceDeleteResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "ResponseSchemaVirtualcustomerservicelistresponse": {
+        "title": "ResponseSchema[VirtualCustomerServiceListResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/VirtualCustomerServiceListResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "StudentPoolInfo": {
+        "title": "StudentPoolInfo",
+        "required": [
+          "id",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "studentId": {
+            "title": "Student Id",
+            "type": "integer"
+          },
+          "studentName": {
+            "title": "Student Name",
+            "type": "string"
+          },
+          "totalSubsidy": {
+            "title": "Total Subsidy",
+            "type": "number"
+          },
+          "remainingAmount": {
+            "title": "Remaining Amount",
+            "type": "number"
+          },
+          "allocatedAmount": {
+            "title": "Allocated Amount",
+            "type": "number"
+          },
+          "completedAmount": {
+            "title": "Completed Amount",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "importBatch": {
+            "title": "Import Batch",
+            "type": "string"
+          },
+          "createdAt": {
+            "title": "Created At",
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAllocationAt": {
+            "title": "Last Allocation At",
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "学生补贴池信息"
+      },
+      "ResponseSchemaVirtualcustomerserviceresponse": {
+        "title": "ResponseSchema[VirtualCustomerServiceResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/VirtualCustomerServiceResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "StudentPoolListResponse": {
+        "title": "StudentPoolListResponse",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "size"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "title": "Items",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentPoolInfo"
+            }
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "description": "学生补贴池列表响应"
+      },
+      "ResponseSchemaVirtualcustomerserviceupdateresponse": {
+        "title": "ResponseSchema[VirtualCustomerServiceUpdateResponse]",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer",
+            "default": 200
+          },
+          "data": {
+            "$ref": "#/components/schemas/VirtualCustomerServiceUpdateResponse"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string",
+            "default": "请求成功"
+          }
+        }
+      },
+      "StudentSubsidyImportResponse": {
+        "title": "StudentSubsidyImportResponse",
+        "type": "object",
+        "properties": {
+          "importBatch": {
+            "title": "Import Batch",
+            "type": "string",
+            "description": "导入批次号"
+          },
+          "totalStudents": {
+            "title": "Total Students",
+            "type": "integer",
+            "description": "导入学生总数"
+          },
+          "totalSubsidy": {
+            "title": "Total Subsidy",
+            "type": "number",
+            "description": "总补贴金额"
+          },
+          "generatedTasks": {
+            "title": "Generated Tasks",
+            "type": "integer",
+            "description": "生成的虚拟任务数量"
+          }
+        },
+        "description": "学生补贴导入响应"
+      },
+      "StudentIncomeSummaryResponse": {
+        "title": "StudentIncomeSummaryResponse",
+        "type": "object",
+        "properties": {
+          "totalStudents": {
+            "title": "Total Students",
+            "type": "integer",
+            "description": "学生总数"
+          },
+          "totalTasks": {
+            "title": "Total Tasks",
+            "type": "integer",
+            "description": "任务总数"
+          },
+          "totalAmount": {
+            "title": "Total Amount",
+            "type": "number",
+            "description": "总金额"
+          },
+          "completedTasks": {
+            "title": "Completed Tasks",
+            "type": "integer",
+            "description": "已完成任务数"
+          },
+          "completedAmount": {
+            "title": "Completed Amount",
+            "type": "number",
+            "description": "已完成金额"
+          },
+          "completionRate": {
+            "title": "Completion Rate",
+            "type": "number",
+            "description": "完成率"
+          },
+          "exportTime": {
+            "title": "Export Time",
+            "type": "string",
+            "description": "统计时间"
+          }
+        },
+        "description": "学生收入汇总响应"
+      },
+      "VirtualOrderStatsResponse": {
+        "title": "VirtualOrderStatsResponse",
+        "type": "object",
+        "properties": {
+          "totalStudents": {
+            "title": "Total Students",
+            "type": "integer",
+            "description": "总学生数"
+          },
+          "totalSubsidy": {
+            "title": "Total Subsidy",
+            "type": "number",
+            "description": "总补贴金额"
+          },
+          "totalTasksGenerated": {
+            "title": "Total Tasks Generated",
+            "type": "integer",
+            "description": "生成的任务总数"
+          },
+          "totalTasksCompleted": {
+            "title": "Total Tasks Completed",
+            "type": "integer",
+            "description": "完成的任务数"
+          },
+          "completionRate": {
+            "title": "Completion Rate",
+            "type": "number",
+            "description": "完成率"
+          }
+        },
+        "description": "虚拟订单统计响应"
+      },
+      "VirtualCustomerServiceCreate": {
+        "title": "VirtualCustomerServiceCreate",
+        "required": [
+          "name",
+          "account"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string",
+            "description": "客服姓名"
+          },
+          "account": {
+            "title": "Account",
+            "type": "string",
+            "description": "客服账号"
+          },
+          "initialPassword": {
+            "title": "Initial Password",
+            "type": "string",
+            "description": "初始密码",
+            "default": "123456"
+          }
+        },
+        "description": "创建虚拟客服请求"
+      },
+      "VirtualCustomerServiceDeleteResponse": {
+        "title": "VirtualCustomerServiceDeleteResponse",
+        "required": [
+          "id",
+          "name",
+          "account",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
+          }
+        },
+        "description": "删除虚拟客服响应"
+      },
+      "VirtualCustomerServiceInfo": {
+        "title": "VirtualCustomerServiceInfo",
+        "required": [
+          "id",
+          "name",
+          "account",
+          "level",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "userId": {
+            "title": "User Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "lastLoginTime": {
+            "title": "Last Login Time",
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "title": "Created At",
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "虚拟客服信息"
+      },
+      "VirtualCustomerServiceListResponse": {
+        "title": "VirtualCustomerServiceListResponse",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "size"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "title": "Items",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VirtualCustomerServiceInfo"
+            }
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "description": "虚拟客服列表响应"
+      },
+      "VirtualCustomerServiceResponse": {
+        "title": "VirtualCustomerServiceResponse",
+        "required": [
+          "id",
+          "name",
+          "account",
+          "level",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "userId": {
+            "title": "User Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "initialPassword": {
+            "title": "Initial Password",
+            "type": "string"
+          }
+        },
+        "description": "虚拟客服响应"
+      },
+      "VirtualCustomerServiceUpdate": {
+        "title": "VirtualCustomerServiceUpdate",
+        "type": "object",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string",
+            "description": "客服姓名"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string",
+            "description": "状态：active-活跃, inactive-停用"
+          }
+        },
+        "description": "更新虚拟客服请求"
+      },
+      "VirtualCustomerServiceUpdateResponse": {
+        "title": "VirtualCustomerServiceUpdateResponse",
+        "required": [
+          "id",
+          "name",
+          "account",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedFields": {
+            "title": "Updated Fields",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "更新虚拟客服响应"
+      }
+    },
+    "securitySchemes": {}
+  },
+  "servers": [],
+  "security": []
+}

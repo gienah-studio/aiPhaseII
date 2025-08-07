@@ -1,0 +1,46 @@
+你要按照我的要求去做， 严格遵守，不要给我多写东西，不然你会影响我的工作。
+不要用HTTPException ，
+要按照 raise BusinessException(
+        code=500,
+        message=f"登录失败: {str(e)}",
+        data=None
+    ) 这种格式返回错误
+使用ResponseSchema包装返回值
+列表接口规则如下：
+    列表使用 同步的 db.query() 方式
+    使用 db.query() 替代了 select()
+    使用 filter() 替代了 where()
+    直接使用 count() 获取总数
+    使用 all() 获取列表数据
+    去掉了所有的 await 因为这是同步操作
+
+get请求除了详情使用 Query 参数装饰器定义接口参数
+api_docs文件添加更详细的response_description、使用标准的JSON格式描述返回数据结构、为每个接口添加完整的描述信息
+脚本都放在scripts里面
+后续创建接口的时候：
+    列表 list，
+    详情 detail，
+    修改 update，
+    删除delete，
+    然后方法 列表、详情用get, 修改用put， 删除del， 这样的话更符合规范
+shared/schemas这个文件下面的修改要保持
+    1. 保持现有的命名规范 - 使用驼峰命名并通过 alias 映射到下划线格式
+    2. 添加详细的字段注释
+    3. 添加权限相关的嵌套模型
+    4. 保持与现有代码风格一致
+列表接口返回的格式是
+    {
+        "code": 200,
+        "data": {
+            "total": xx,
+            "items": []
+        },
+        "message": 'xxxx'
+    }
+ResponseSchema的引入是：
+    from shared.schemas.common import ResponseSchema 而不是from shared.response import ResponseSchema
+get_current_user引入是
+    from shared.dependencies.auth import get_current_user
+get_db引入格式是
+    from shared.database.session import get_db
+接口的注释引入格式说response_model=ResponseSchema[], **ApprovalFlowApiDocs

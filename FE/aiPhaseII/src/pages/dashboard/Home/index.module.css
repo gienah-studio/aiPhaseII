@@ -1,0 +1,121 @@
+/* Home页面样式 */
+
+.container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 欢迎卡片样式 */
+.welcomeCard {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+  transition: box-shadow 0.3s ease;
+  border: 1px solid #f0f0f0;
+}
+
+.welcomeCard:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1890ff;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: #666;
+  margin: 0;
+}
+
+.time {
+  font-size: 13px;
+  color: #999;
+  margin: 0;
+}
+
+/* 头像样式 */
+.avatar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.avatarImg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+}
+
+/* 图表区域样式 */
+.chartSection {
+  margin-bottom: 20px;
+}
+
+/* 表格区域样式 */
+.tableSection {
+  margin-bottom: 20px;
+}
+
+/* 加载状态样式 */
+.loading {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.loadingText {
+  margin-top: 16px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 8px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+
+  .time {
+    font-size: 12px;
+  }
+
+  .avatarImg {
+    width: 56px;
+    height: 56px;
+  }
+
+  .welcomeCard {
+    margin-bottom: 16px;
+  }
+
+  .chartSection,
+  .tableSection {
+    margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 576px) {
+  .title {
+    font-size: 18px;
+  }
+
+  .avatarImg {
+    width: 48px;
+    height: 48px;
+  }
+}

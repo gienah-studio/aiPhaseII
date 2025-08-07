@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # 数据库
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=aiPhasell
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # API服务
+  app:
+    build: .
+    ports:
+      - "9007:9007"
+    environment:
+      - MYSQL_HOST=rm-bp1j5w6xje06c6l5tvo.mysql.rds.aliyuncs.com
+      - MYSQL_PORT=3306
+      - MYSQL_USER=ai_sever
+      - MYSQL_PASSWORD=Qq5201314
+      - MYSQL_DATABASE=gx_booking_db
+      - REDIS_HOST=8.137.48.23
+      - REDIS_PORT=6380
+      - REDIS_DB=0
+      - REDIS_PASSWORD=guangliangfaoa123456789.
+    tty: true
+    stdin_open: true
+    depends_on:
+      - mysql
+
+volumes:
+  mysql_data:

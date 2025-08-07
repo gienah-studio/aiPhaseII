@@ -1,0 +1,164 @@
+/* 学生模块页面样式 */
+
+.container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 统计区域样式 */
+.statsSection {
+  margin-bottom: 20px;
+}
+
+.statCard {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid #f0f0f0;
+  height: 100%;
+}
+
+.statCard:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.statIcon {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.header h4 {
+  margin-bottom: 16px;
+  color: #1890ff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.summaryArea {
+  padding: 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #d6f7ff;
+}
+
+.searchArea {
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #f0f0f0;
+}
+
+/* 表格样式优化 */
+.ant-table-thead > tr > th {
+  background: #f5f7fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f0f9ff;
+}
+
+/* 操作按钮样式 */
+.ant-btn-link {
+  padding: 0 4px;
+  height: auto;
+}
+
+/* 标签样式 */
+.ant-tag {
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* 分割线样式 */
+.ant-divider {
+  margin: 16px 0;
+}
+
+/* 日期选择器样式 */
+.ant-picker {
+  border-radius: 6px;
+}
+
+/* 响应式设计 */
+
+/* 大屏幕优化 */
+@media (min-width: 1920px) {
+  .statCard {
+    padding: 24px;
+  }
+
+  .statIcon {
+    font-size: 24px;
+  }
+
+  .header h4 {
+    font-size: 20px;
+  }
+}
+
+/* 中等屏幕 */
+@media (max-width: 1200px) {
+  .summaryArea,
+  .searchArea {
+    padding: 14px;
+  }
+}
+
+/* 平板设备 */
+@media (max-width: 768px) {
+  .summaryArea,
+  .searchArea {
+    padding: 12px;
+  }
+
+  .summaryArea .ant-space,
+  .searchArea .ant-space {
+    width: 100%;
+  }
+
+  .summaryArea .ant-space-item,
+  .searchArea .ant-space-item {
+    width: 100%;
+  }
+
+  .summaryArea .ant-picker,
+  .searchArea .ant-select {
+    width: 100% !important;
+  }
+
+  .statIcon {
+    font-size: 18px;
+  }
+
+  .header h4 {
+    font-size: 16px;
+  }
+}
+
+/* 手机设备 */
+@media (max-width: 576px) {
+  .summaryArea,
+  .searchArea {
+    padding: 10px;
+  }
+
+  .statIcon {
+    font-size: 16px;
+  }
+
+  .header h4 {
+    font-size: 14px;
+  }
+}
