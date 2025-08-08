@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 import random
+import json
+import os
 from typing import List, Dict, Any, Tuple
 from decimal import Decimal
 from sqlalchemy.orm import Session
@@ -22,33 +24,16 @@ class VirtualOrderService:
         # nanoid字符集（对应JS的customAlphabet('1234567890abcdef', 10)）
         self.nanoid_alphabet = '1234567890abcdef'
         self.nanoid_length = 10
-        
-        # 任务内容随机生成配置
-        self.task_adjectives = [
-            '紧急', '重要', '优先', '高效', '精准', '快速', '专业', '优质',
-            '关键', '核心', '特殊', '标准', '规范', '详细', '完整', '准确'
-        ]
 
-        self.task_actions = [
-            '整理', '分析', '处理', '核查', '审核', '统计', '汇总', '编辑',
-            '校对', '归档', '分类', '筛选', '验证', '确认', '更新', '维护'
-        ]
-
-        self.task_requirements = [
-            '请按照标准流程完成相关工作，注意保持高质量标准。',
-            '请仔细核对相关信息，确保准确性和完整性。',
-            '请按照既定规范进行操作，保证工作效率。',
-            '请认真完成指定内容，注意细节处理。',
-            '请严格按照要求执行，确保符合质量标准。',
-            '请高效完成相关任务，保持专业水准。'
-        ]
+        # 加载任务内容配置文件
+        self._load_task_content_config()
 
         # 任务模板配置（后续可以从配置文件或数据库读取）
         self.task_templates = {
             'source': '集团业务',  # 可选：淘宝、集团业务、其他业务
             'commission_unit': '人民币',
-            'task_style': '数据处理',
-            'task_type': '虚拟任务',
+            'task_style': '其他',  # 修改为其他
+            'task_type': '其他',  # 修改为其他
             'reference_images': '',
             'founder': '虚拟订单系统',
             'founder_id': 0,
@@ -58,8 +43,46 @@ class VirtualOrderService:
             'payment_status': '0',  # 待支付
             'task_level': 'D',  # 修改为D级别
             'end_date_hours': 3,  # 接单截止时间：创建后3小时
-            'delivery_date_days': 3,  # 交稿时间：接单后3天
+            'delivery_date_hours': 3,  # 交稿时间：接单后3小时
         }
+
+    def _load_task_content_config(self):
+        """加载任务内容配置文件"""
+        try:
+            # 获取配置文件目录
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            config_dir = os.path.join(current_dir, '..', 'config')
+
+            # 加载标题配置
+            titles_file = os.path.join(config_dir, 'task_titles.json')
+            with open(titles_file, 'r', encoding='utf-8') as f:
+                titles_data = json.load(f)
+                self.task_titles = titles_data['titles']
+
+            # 加载背景配置
+            backgrounds_file = os.path.join(config_dir, 'task_backgrounds.json')
+            with open(backgrounds_file, 'r', encoding='utf-8') as f:
+                backgrounds_data = json.load(f)
+                self.task_backgrounds = backgrounds_data['backgrounds']
+
+            # 加载风格配置
+            styles_file = os.path.join(config_dir, 'task_styles.json')
+            with open(styles_file, 'r', encoding='utf-8') as f:
+                styles_data = json.load(f)
+                self.task_styles = styles_data['styles']
+
+            # 加载分层模板配置
+            templates_file = os.path.join(config_dir, 'task_templates.json')
+            with open(templates_file, 'r', encoding='utf-8') as f:
+                self.task_templates_data = json.load(f)
+
+        except Exception as e:
+            # 如果加载失败，使用默认配置
+            print(f"警告：加载任务内容配置文件失败: {str(e)}")
+            self.task_titles = ["生成高质量、风格化的虚拟人物"]
+            self.task_backgrounds = ["梦幻的场景中"]
+            self.task_styles = ["水彩手绘风格，柔和的色彩晕染"]
+            self.task_templates_data = None
     
     def generate_order_number(self) -> str:
         """生成订单号"""
@@ -67,21 +90,87 @@ class VirtualOrderService:
 
     def generate_random_task_content(self) -> Dict[str, str]:
         """
-        生成随机的任务内容
+        生成随机的任务内容，使用智能组合规则
 
         Returns:
             Dict[str, str]: 包含summary和requirement的字典
         """
-        # 随机选择形容词和动作
-        adjective = random.choice(self.task_adjectives)
-        action = random.choice(self.task_actions)
-        requirement = random.choice(self.task_requirements)
+        # 30%概率使用分层模板生成，70%概率使用原有方式
+        if self.task_templates_data and random.random() < 0.3:
+            return self._generate_template_based_content()
+        else:
+            return self._generate_simple_content()
 
-        # 生成任务标题
-        summary = f'{adjective}任务 - {action}工作'
+    def _generate_simple_content(self) -> Dict[str, str]:
+        """使用原有的简单组合方式生成内容"""
+        # 随机选择标题
+        title = random.choice(self.task_titles)
+
+        # 随机选择背景和风格
+        background = random.choice(self.task_backgrounds)
+        style = random.choice(self.task_styles)
+
+        # 添加随机修饰元素
+        modifiers = []
+        if self.task_templates_data and 'detail_modifiers' in self.task_templates_data:
+            detail_modifiers = self.task_templates_data['detail_modifiers']
+            # 20%概率添加时间元素
+            if random.random() < 0.2:
+                modifiers.append(random.choice(detail_modifiers['time_elements']))
+            # 15%概率添加天气元素
+            if random.random() < 0.15:
+                modifiers.append(random.choice(detail_modifiers['weather_elements']))
+            # 25%概率添加情感元素
+            if random.random() < 0.25:
+                modifiers.append(random.choice(detail_modifiers['emotion_elements']))
+
+        # 组合生成需求描述
+        modifier_text = "，".join(modifiers) + "，" if modifiers else ""
+        requirement = f"{background}，{modifier_text}{style}"
 
         return {
-            'summary': summary,
+            'summary': title,
+            'requirement': requirement
+        }
+
+    def _generate_template_based_content(self) -> Dict[str, str]:
+        """使用分层模板生成更智能的内容组合"""
+        themes = self.task_templates_data['themes']
+        art_styles = self.task_templates_data['art_styles']
+        combination_rules = self.task_templates_data['combination_rules']
+
+        # 选择主题
+        theme_name = random.choice(list(themes.keys()))
+        theme_data = themes[theme_name]
+
+        # 选择艺术风格
+        art_style_name = random.choice(list(art_styles.keys()))
+        art_style_data = art_styles[art_style_name]
+
+        # 检查是否为推荐组合
+        is_compatible = any(
+            theme_name in combo and art_style_name in combo
+            for combo in combination_rules.get('highly_compatible', [])
+        )
+
+        # 生成角色和场景
+        character = random.choice(theme_data['characters'])
+        scene = random.choice(theme_data['scenes'])
+        mood = random.choice(theme_data['moods'])
+        color = random.choice(theme_data['colors'])
+
+        # 生成技法和效果
+        technique = random.choice(art_style_data['techniques'])
+        effect = random.choice(art_style_data['effects'])
+
+        # 生成标题
+        title = f"创作{theme_name}风格的{character}角色设计"
+
+        # 生成描述
+        requirement = f"{scene}中，{mood}的{character}形象，采用{art_style_name}技法，{technique}表现，{color}为主色调，突出{effect}的视觉效果"
+
+        return {
+            'summary': title,
             'requirement': requirement
         }
     
@@ -161,7 +250,7 @@ class VirtualOrderService:
             commission=amount,
             commission_unit=self.task_templates['commission_unit'],
             end_date=now + timedelta(hours=self.task_templates['end_date_hours']),  # 3小时后过期
-            delivery_date=now + timedelta(days=self.task_templates['delivery_date_days']),
+            delivery_date=now + timedelta(hours=self.task_templates['delivery_date_hours']),  # 接单后3小时交稿
             status=self.task_templates['status'],
             task_style=self.task_templates['task_style'],
             task_type=self.task_templates['task_type'],
@@ -348,7 +437,7 @@ class VirtualOrderService:
                     user = OriginalUser(
                         username=account,
                         password='$2b$12$defaultpasswordhash',  # 默认密码，需要后续修改
-                        role='customer_service',
+                        role='6',  # 虚拟客服角色
                         lastLoginTime=None,
                         isDeleted=False
                     )
@@ -632,7 +721,7 @@ class VirtualOrderService:
             user = OriginalUser(
                 username=account,
                 password=hashed_password,
-                role='4',  # 虚拟客服角色设置为4
+                role='6',  # 虚拟客服角色设置为6
                 lastLoginTime=None,
                 isDeleted=False
             )
@@ -671,6 +760,162 @@ class VirtualOrderService:
             raise BusinessException(
                 code=500,
                 message=f"创建虚拟客服失败: {str(e)}",
+                data=None
+            )
+
+    def get_student_available_tasks(self, student_id: int, include_bonus_pool: bool = True) -> List[Dict[str, Any]]:
+        """
+        获取学生可见的虚拟任务（包括普通虚拟任务和奖金池任务）
+        
+        Args:
+            student_id: 学生ID
+            include_bonus_pool: 是否包含奖金池任务
+            
+        Returns:
+            List[Dict]: 可见任务列表
+        """
+        try:
+            from datetime import date, timedelta
+            from .bonus_pool_service import BonusPoolService
+            
+            tasks = []
+            now = datetime.now()
+            
+            # 1. 获取专属虚拟任务（未过期且未接取）
+            personal_tasks = self.db.query(Tasks).filter(
+                Tasks.is_virtual == True,
+                Tasks.is_bonus_pool == False,
+                Tasks.target_student_id == student_id,
+                Tasks.status == '0',  # 未接取
+                Tasks.end_date > now  # 未过期
+            ).all()
+            
+            for task in personal_tasks:
+                tasks.append({
+                    'id': task.id,
+                    'type': 'personal',  # 个人专属任务
+                    'summary': task.summary,
+                    'requirement': task.requirement,
+                    'commission': float(task.commission),
+                    'order_number': task.order_number,
+                    'end_date': task.end_date.isoformat() if task.end_date else None,
+                    'created_at': task.created_at.isoformat() if task.created_at else None,
+                    'task_level': task.task_level,
+                    'source': task.source
+                })
+            
+            # 2. 检查是否可以看到奖金池任务
+            if include_bonus_pool:
+                bonus_service = BonusPoolService(self.db)
+                if bonus_service.check_student_bonus_access(student_id):
+                    # 获取今日奖金池任务
+                    today = date.today()
+                    bonus_tasks = self.db.query(Tasks).filter(
+                        Tasks.is_virtual == True,
+                        Tasks.is_bonus_pool == True,
+                        Tasks.bonus_pool_date == today,
+                        Tasks.status == '0',  # 未接取
+                        Tasks.end_date > now  # 未过期
+                    ).all()
+                    
+                    for task in bonus_tasks:
+                        tasks.append({
+                            'id': task.id,
+                            'type': 'bonus_pool',  # 奖金池任务
+                            'summary': task.summary,
+                            'requirement': task.requirement,
+                            'commission': float(task.commission),
+                            'order_number': task.order_number,
+                            'end_date': task.end_date.isoformat() if task.end_date else None,
+                            'created_at': task.created_at.isoformat() if task.created_at else None,
+                            'task_level': task.task_level,
+                            'source': '奖金池'
+                        })
+            
+            # 按创建时间倒序排序
+            tasks.sort(key=lambda x: x['created_at'], reverse=True)
+            
+            return tasks
+            
+        except Exception as e:
+            raise BusinessException(
+                code=500,
+                message=f"获取学生可见任务失败: {str(e)}",
+                data=None
+            )
+    
+    def accept_task(self, task_id: int, student_id: int) -> Dict[str, Any]:
+        """
+        学生接取任务
+        
+        Args:
+            task_id: 任务ID
+            student_id: 学生ID
+            
+        Returns:
+            Dict: 接取结果
+        """
+        try:
+            # 获取学生信息
+            student = self.db.query(UserInfo).filter(
+                UserInfo.roleId == student_id,
+                UserInfo.level == '3',
+                UserInfo.isDeleted == False
+            ).first()
+            
+            if not student:
+                raise BusinessException(code=404, msg="学生不存在")
+            
+            # 使用行锁防止并发接取
+            task = self.db.query(Tasks).filter(
+                Tasks.id == task_id,
+                Tasks.status == '0'  # 未接取
+            ).with_for_update().first()
+            
+            if not task:
+                raise BusinessException(code=404, msg="任务不存在或已被接取")
+            
+            # 检查任务是否过期
+            if task.end_date and task.end_date < datetime.now():
+                raise BusinessException(code=400, msg="任务已过期")
+            
+            # 检查权限
+            if task.is_bonus_pool:
+                # 奖金池任务需要检查达标权限
+                from .bonus_pool_service import BonusPoolService
+                bonus_service = BonusPoolService(self.db)
+                if not bonus_service.check_student_bonus_access(student_id):
+                    raise BusinessException(code=403, msg="您没有权限接取奖金池任务，需要前一天达标")
+            elif task.target_student_id and task.target_student_id != student_id:
+                # 专属任务只能由指定学生接取
+                raise BusinessException(code=403, msg="您没有权限接取此任务")
+            
+            # 更新任务状态
+            task.status = '1'  # 已接取
+            task.accepted_by = str(student_id)
+            task.accepted_name = student.name
+            task.order_received_number = 1
+            task.updated_at = datetime.now()
+            
+            self.db.commit()
+            
+            return {
+                'success': True,
+                'task_id': task_id,
+                'student_id': student_id,
+                'student_name': student.name,
+                'commission': float(task.commission),
+                'delivery_date': task.delivery_date.isoformat() if task.delivery_date else None
+            }
+            
+        except BusinessException:
+            self.db.rollback()
+            raise
+        except Exception as e:
+            self.db.rollback()
+            raise BusinessException(
+                code=500,
+                message=f"接取任务失败: {str(e)}",
                 data=None
             )
 

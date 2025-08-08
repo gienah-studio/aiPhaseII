@@ -136,7 +136,21 @@ const StudentIncome: React.FC = () => {
               {record.phoneNumber || '未填写'}
             </span>
           </Space>
-          <Tag color="blue" size="small">ID: {record.studentId}</Tag>
+          <Space size="small">
+            <Tag color="blue" size="small">ID: {record.studentId}</Tag>
+            {record.commissionRate === 'N/A' ? (
+              <Tag color="orange" size="small">虚拟任务</Tag>
+            ) : (
+              <Tag color="green" size="small">
+                返佣: {(() => {
+                  const rateNum = parseFloat(record.commissionRate);
+                  if (isNaN(rateNum)) return '0.0';
+                  const percentage = rateNum <= 1 ? (rateNum * 100).toFixed(1) : rateNum.toFixed(1);
+                  return percentage;
+                })()}%
+              </Tag>
+            )}
+          </Space>
         </Space>
       ),
     },

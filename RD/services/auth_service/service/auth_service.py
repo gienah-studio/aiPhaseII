@@ -546,10 +546,37 @@ class AuthService:
                         if str(student.roleId) in accepted_user_ids:
                             commission = Decimal(str(task.commission))
                             original_commission += commission
-                            # 按主系统逻辑：实际收入 = 佣金 × agent_rebate
-                            actual_commission = commission * agent_rebate_decimal
+
+                            # 区分虚拟任务和普通任务的处理逻辑
+                            if hasattr(task, 'is_virtual') and task.is_virtual:
+                                # 虚拟任务：学员直接获得全部佣金，不需要代理返佣
+                                actual_commission = commission
+                                print(f"[DEBUG] 虚拟任务 {task.id}: 佣金 {commission}, 实际收入 {actual_commission} (无返佣)")
+                            else:
+                                # 普通任务：按代理返佣比例计算实际收入
+                                actual_commission = commission * agent_rebate_decimal
+                                print(f"[DEBUG] 普通任务 {task.id}: 佣金 {commission}, 返佣比例 {agent_rebate_decimal}, 实际收入 {actual_commission}")
+
                             total_commission += actual_commission
                             completed_orders += 1
+
+                # 计算虚拟任务和普通任务的统计
+                virtual_commission = Decimal('0.00')
+                normal_commission = Decimal('0.00')
+                virtual_orders = 0
+                normal_orders = 0
+
+                for task in completed_tasks:
+                    if task.accepted_by and task.commission:
+                        accepted_user_ids = task.accepted_by.split(',')
+                        if str(student.roleId) in accepted_user_ids:
+                            commission = Decimal(str(task.commission))
+                            if hasattr(task, 'is_virtual') and task.is_virtual:
+                                virtual_commission += commission
+                                virtual_orders += 1
+                            else:
+                                normal_commission += commission
+                                normal_orders += 1
 
                 # 添加学员统计数据（使用驼峰命名，会被中间件转换）
                 student_stat = {
@@ -557,9 +584,13 @@ class AuthService:
                     "student_name": student.name or "",
                     "yesterday_income": str(original_commission),  # 原始佣金总额
                     "yesterday_completed_orders": completed_orders,
-                    "commission_rate": agent_rebate,  # 代理返佣比例
+                    "commission_rate": agent_rebate if normal_commission > 0 else "N/A",  # 只有普通任务才显示返佣比例
                     "actual_income": str(total_commission),  # 实际到手金额
-                    "phone_number": student.phone_number or ""
+                    "phone_number": student.phone_number or "",
+                    "virtual_orders": virtual_orders,  # 虚拟任务数量
+                    "normal_orders": normal_orders,  # 普通任务数量
+                    "virtual_commission": str(virtual_commission),  # 虚拟任务佣金
+                    "normal_commission": str(normal_commission)  # 普通任务佣金
                     # 移除 agent_id 字段
                 }
                 students_stats.append(student_stat)

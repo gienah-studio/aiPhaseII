@@ -24,6 +24,7 @@ if hasattr(time, 'tzset'):
 from services.auth_service.routers import auth # 认证服务
 # 导入虚拟订单服务的路由
 from services.virtual_order_service.routes import virtual_order_routes
+from services.virtual_order_service.routes import bonus_pool_routes
 # 导入定时任务调度器
 from services.virtual_order_service.service.task_scheduler import start_background_tasks, stop_background_tasks
 
@@ -148,6 +149,9 @@ app.include_router(auth.router, prefix="/api/auth", tags=["认证服务"])
 
 # 注册虚拟订单服务的路由
 app.include_router(virtual_order_routes.router, prefix="/api/virtualOrders", tags=["虚拟订单服务"])
+
+# 注册奖金池管理路由
+app.include_router(bonus_pool_routes.router, prefix="/api", tags=["奖金池管理"])
 
 @app.get("/")
 async def root():

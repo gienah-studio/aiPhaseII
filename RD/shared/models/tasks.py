@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, Text, Boolean, Numeric
+from sqlalchemy import Column, String, Integer, DateTime, Text, Boolean, Numeric, Date
 from sqlalchemy.orm import relationship
 from shared.database.session import Base
 from datetime import datetime
@@ -34,6 +34,8 @@ class Tasks(Base):
     is_renew = Column(String(255), nullable=True, comment="任务更新，0未更新， 1更新")
     is_virtual = Column(Boolean, default=False, comment="是否为虚拟任务：0-普通任务，1-虚拟任务")
     target_student_id = Column(Integer, nullable=True, comment="目标学生ID，虚拟任务专用，限制只有指定学生可以接取")
+    is_bonus_pool = Column(Boolean, default=False, comment="是否为奖金池任务：0-否，1-是")
+    bonus_pool_date = Column(Date, nullable=True, comment="奖金池归属日期")
 
     def __repr__(self):
-        return f"<Tasks(id={self.id}, summary='{self.summary}', is_virtual={self.is_virtual})>"
+        return f"<Tasks(id={self.id}, summary='{self.summary}', is_virtual={self.is_virtual}, is_bonus_pool={self.is_bonus_pool})>"

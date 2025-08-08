@@ -43,16 +43,17 @@ def test_amount_calculation():
 def test_task_content_generation():
     """测试任务内容生成"""
     print("\n=== 测试任务内容生成 ===")
-    
+
     db = SessionLocal()
     service = VirtualOrderService(db)
-    
-    print("生成10个随机任务内容:")
-    for i in range(10):
+
+    print("生成20个随机任务内容（包含简单组合和智能模板）:")
+    for i in range(20):
         content = service.generate_random_task_content()
-        print(f"{i+1}. {content['summary']}")
-        print(f"   需求: {content['requirement']}")
-    
+        print(f"{i+1}. 标题: {content['summary']}")
+        print(f"   描述: {content['requirement']}")
+        print("-" * 80)
+
     db.close()
 
 def test_virtual_task_creation():
@@ -70,22 +71,32 @@ def test_virtual_task_creation():
     task = service.create_virtual_task(student_id, student_name, amount)
     
     print(f"任务标题: {task.summary}")
-    print(f"任务需求: {task.requirement}")
+    print(f"任务描述: {task.requirement}")
     print(f"任务金额: {task.commission}")
+    print(f"任务类别: {task.task_style}")
     print(f"创建时间: {task.created_at}")
     print(f"截止时间: {task.end_date}")
     print(f"交稿时间: {task.delivery_date}")
     print(f"目标学生ID: {task.target_student_id}")
-    
+
     # 验证3小时生存周期
-    time_diff = task.end_date - task.created_at
-    hours_diff = time_diff.total_seconds() / 3600
-    print(f"生存周期: {hours_diff} 小时")
-    
-    if abs(hours_diff - 3) < 0.1:  # 允许小的误差
-        print("✓ 生存周期设置正确")
+    end_time_diff = task.end_date - task.created_at
+    end_hours_diff = end_time_diff.total_seconds() / 3600
+    print(f"接单截止周期: {end_hours_diff} 小时")
+
+    delivery_time_diff = task.delivery_date - task.created_at
+    delivery_hours_diff = delivery_time_diff.total_seconds() / 3600
+    print(f"交稿时间周期: {delivery_hours_diff} 小时")
+
+    if abs(end_hours_diff - 3) < 0.1:  # 允许小的误差
+        print("✓ 接单截止时间设置正确")
     else:
-        print("❌ 生存周期设置错误")
+        print("❌ 接单截止时间设置错误")
+
+    if abs(delivery_hours_diff - 3) < 0.1:  # 允许小的误差
+        print("✓ 交稿时间设置正确")
+    else:
+        print("❌ 交稿时间设置错误")
     
     db.close()
 

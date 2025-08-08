@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -9,6 +9,7 @@ from shared.database.session import SessionLocal
 from shared.models.tasks import Tasks
 from shared.models.virtual_order_pool import VirtualOrderPool
 from .virtual_order_service import VirtualOrderService
+from .bonus_pool_service import BonusPoolService
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +22,11 @@ class VirtualOrderTaskScheduler:
         self.is_running = False
         # 设置执行间隔：每10分钟执行一次
         self.check_interval_minutes = 10
+        # 记录上次执行每日任务的日期
+        self.last_daily_task_date = None
+        # 奖金池任务检查间隔（3小时）
+        self.bonus_pool_check_interval_hours = 3
+        self.last_bonus_pool_check_time = None
     
     async def start_scheduler(self):
         """启动定时任务调度器"""
@@ -29,7 +35,19 @@ class VirtualOrderTaskScheduler:
 
         while self.is_running:
             try:
-                # 执行过期任务检查
+                current_time = datetime.now()
+                
+                # 1. 检查是否需要执行每日任务（凌晨0点）
+                if self.should_run_daily_task(current_time):
+                    await self.run_daily_bonus_pool_task()
+                    self.last_daily_task_date = date.today()
+                
+                # 2. 检查是否需要处理奖金池过期任务（每3小时）
+                if self.should_run_bonus_pool_check(current_time):
+                    await self.check_expired_bonus_pool_tasks()
+                    self.last_bonus_pool_check_time = current_time
+                
+                # 3. 执行普通过期任务检查
                 if self.is_running:
                     await self.check_expired_tasks()
 
@@ -165,10 +183,91 @@ class VirtualOrderTaskScheduler:
             logger.error(f"处理学生 {student_id} 的过期任务时出错: {str(e)}")
             raise
     
+    def should_run_daily_task(self, current_time: datetime) -> bool:
+        """判断是否应该执行每日任务"""
+        # 检查是否在凌晨0点到0点30分之间
+        if current_time.time() >= time(0, 0) and current_time.time() <= time(0, 30):
+            # 检查今天是否已经执行过
+            if self.last_daily_task_date != date.today():
+                return True
+        return False
+    
+    def should_run_bonus_pool_check(self, current_time: datetime) -> bool:
+        """判断是否应该检查奖金池过期任务"""
+        if self.last_bonus_pool_check_time is None:
+            return True
+        
+        # 检查距离上次执行是否超过3小时
+        time_diff = current_time - self.last_bonus_pool_check_time
+        if time_diff.total_seconds() >= self.bonus_pool_check_interval_hours * 3600:
+            return True
+        return False
+    
+    async def run_daily_bonus_pool_task(self):
+        """执行每日奖金池任务"""
+        db = SessionLocal()
+        try:
+            logger.info("开始执行每日奖金池任务...")
+            bonus_service = BonusPoolService(db)
+            
+            # 1. 更新昨天的学生达标记录
+            yesterday = date.today() - timedelta(days=1)
+            achievement_result = bonus_service.update_daily_achievements(yesterday)
+            logger.info(f"学生达标统计完成: {achievement_result}")
+            
+            # 2. 创建或更新今日奖金池
+            today_pool = bonus_service.create_or_update_bonus_pool()
+            logger.info(f"今日奖金池已创建/更新: 总金额={today_pool.total_amount}")
+            
+            # 3. 生成奖金池任务
+            if today_pool.remaining_amount > 0:
+                generate_result = bonus_service.generate_bonus_pool_tasks()
+                logger.info(f"奖金池任务生成结果: {generate_result}")
+            
+            db.commit()
+            logger.info("每日奖金池任务执行完成")
+            
+        except Exception as e:
+            logger.error(f"执行每日奖金池任务失败: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
+    
+    async def check_expired_bonus_pool_tasks(self):
+        """检查并处理过期的奖金池任务"""
+        db = SessionLocal()
+        try:
+            logger.info("开始检查过期的奖金池任务...")
+            bonus_service = BonusPoolService(db)
+            
+            # 处理过期的奖金池任务
+            result = bonus_service.process_expired_bonus_tasks()
+            logger.info(f"过期奖金池任务处理结果: {result}")
+            
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"处理过期奖金池任务失败: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
+    
     async def manual_check_expired_tasks(self):
         """手动触发过期任务检查（用于测试或手动执行）"""
         logger.info("手动触发过期任务检查")
         await self.check_expired_tasks()
+    
+    async def manual_run_daily_bonus_pool(self):
+        """手动触发每日奖金池任务（用于测试）"""
+        logger.info("手动触发每日奖金池任务")
+        await self.run_daily_bonus_pool_task()
+        self.last_daily_task_date = date.today()
+    
+    async def manual_check_bonus_pool_tasks(self):
+        """手动触发奖金池过期任务检查（用于测试）"""
+        logger.info("手动触发奖金池过期任务检查")
+        await self.check_expired_bonus_pool_tasks()
+        self.last_bonus_pool_check_time = datetime.now()
 
 # 全局调度器实例
 scheduler = VirtualOrderTaskScheduler()

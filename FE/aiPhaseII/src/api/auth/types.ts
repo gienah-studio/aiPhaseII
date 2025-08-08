@@ -36,9 +36,13 @@ export interface StudentIncomeStats {
   studentName: string;            // 学员姓名
   yesterdayIncome: string;        // 昨日原始佣金总额
   yesterdayCompletedOrders: number;  // 昨日完成订单数
-  commissionRate: string;         // 代理返佣比例（学员能拿到的比例）
+  commissionRate: string;         // 代理返佣比例（学员能拿到的比例），虚拟任务显示"N/A"
   actualIncome: string;           // 实际到手金额
   phoneNumber: string;            // 手机号
+  virtualOrders?: number;         // 虚拟任务数量
+  normalOrders?: number;          // 普通任务数量
+  virtualCommission?: string;     // 虚拟任务佣金
+  normalCommission?: string;      // 普通任务佣金
 }
 
 // 所有学员收入统计响应
