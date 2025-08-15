@@ -36,6 +36,8 @@ class Tasks(Base):
     target_student_id = Column(Integer, nullable=True, comment="目标学生ID，虚拟任务专用，限制只有指定学生可以接取")
     is_bonus_pool = Column(Boolean, default=False, comment="是否为奖金池任务：0-否，1-是")
     bonus_pool_date = Column(Date, nullable=True, comment="奖金池归属日期")
+    value_recycled = Column(Boolean, default=False, comment="价值是否已回收（仅虚拟任务使用）")
+    recycled_at = Column(DateTime, nullable=True, comment="价值回收时间（仅虚拟任务使用）")
 
     def __repr__(self):
         return f"<Tasks(id={self.id}, summary='{self.summary}', is_virtual={self.is_virtual}, is_bonus_pool={self.is_bonus_pool})>"

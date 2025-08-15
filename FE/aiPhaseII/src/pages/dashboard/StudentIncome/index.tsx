@@ -313,6 +313,13 @@ const StudentIncome: React.FC = () => {
                   showQuickJumper: true,
                   showTotal: (total, range) =>
                     `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
+                  pageSizeOptions: ['10', '20', '50', '100'],
+                  locale: {
+                    items_per_page: '/页',
+                    jump_to: '跳至',
+                    jump_to_confirm: '确定',
+                    page: '页'
+                  },
                   onChange: handleTableChange,
                   onShowSizeChange: handleTableChange,
                 }}

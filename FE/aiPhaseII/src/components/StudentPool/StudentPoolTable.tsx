@@ -1,7 +1,9 @@
 import React from 'react';
-import { Table, Tag, Progress, Card, Typography } from 'antd';
+import { Table, Tag, Progress, Card, Typography, Button, Space, Popconfirm, message } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { StudentPoolItem } from '../../api/virtualOrders/types';
+import { deleteStudentPool } from '../../api';
 
 const { Title } = Typography;
 
@@ -12,6 +14,7 @@ interface StudentPoolTableProps {
   current?: number;
   pageSize?: number;
   onChange?: (page: number, size?: number) => void;
+  onDelete?: () => void; // 删除后的回调函数
 }
 
 const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
@@ -20,7 +23,8 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
   total = 0,
   current = 1,
   pageSize = 10,
-  onChange
+  onChange,
+  onDelete
 }) => {
   // 数据安全处理函数
   const safeNumber = (value: any): number => {
@@ -56,19 +60,36 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
     return textMap[status] || status;
   };
 
+  // 删除学生补贴池
+  const handleDeletePool = async (poolId: number) => {
+    try {
+      await deleteStudentPool(poolId);
+      message.success('删除学生补贴池成功');
+      if (onDelete) {
+        onDelete();
+      }
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.message || '删除失败';
+      message.error(errorMsg);
+      console.error('删除学生补贴池失败:', error);
+    }
+  };
+
   const columns: ColumnsType<StudentPoolItem> = [
+    {
+      title: '序号',
+      key: 'index',
+      width: 80,
+      fixed: 'left',
+      render: (_, __, index) => {
+        return (current - 1) * pageSize + index + 1;
+      },
+    },
     {
       title: '学生姓名',
       key: 'student_name',
       width: 120,
-      fixed: 'left',
       render: (_, record) => getFieldValue(record, 'studentName', 'student_name') || '-'
-    },
-    {
-      title: '学生ID',
-      key: 'student_id',
-      width: 100,
-      render: (_, record) => getFieldValue(record, 'studentId', 'student_id') || '-'
     },
     {
       title: '补贴金额',
@@ -131,9 +152,19 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
       key: 'completion_rate',
       width: 120,
       render: (_, record) => {
-        const totalSubsidy = safeNumber(getFieldValue(record, 'totalSubsidy', 'subsidy_amount'));
-        const completedAmount = safeNumber(getFieldValue(record, 'completedAmount', 'tasks_completed'));
-        const rate = totalSubsidy > 0 ? (completedAmount / totalSubsidy) * 100 : 0;
+        // 优先使用后端返回的完成率，如果没有则前端计算（兼容性）
+        const backendRate = getFieldValue(record, 'completionRate', 'completion_rate');
+        let rate = 0;
+
+        if (backendRate !== undefined && backendRate !== null) {
+          rate = safeNumber(backendRate);
+        } else {
+          // 兼容性：如果后端没有返回完成率，使用实际消耗的补贴来计算
+          const totalSubsidy = safeNumber(getFieldValue(record, 'totalSubsidy', 'subsidy_amount'));
+          const consumedSubsidy = safeNumber(getFieldValue(record, 'consumedSubsidy', 'consumed_subsidy'));
+          rate = totalSubsidy > 0 ? (consumedSubsidy / totalSubsidy) * 100 : 0;
+        }
+
         return (
           <Progress
             percent={Math.round(rate)}
@@ -152,6 +183,38 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
         const rateB = totalSubsidyB > 0 ? (completedAmountB / totalSubsidyB) * 100 : 0;
 
         return rateA - rateB;
+      }
+    },
+    {
+      title: '返佣比例',
+      key: 'agent_rebate',
+      width: 120,
+      render: (_, record) => {
+        const rebate = getFieldValue(record, 'agentRebate', 'agent_rebate');
+        return rebate ? `${rebate}%` : '-';
+      },
+      sorter: (a, b) => {
+        const rebateA = parseFloat(getFieldValue(a, 'agentRebate', 'agent_rebate') || '0');
+        const rebateB = parseFloat(getFieldValue(b, 'agentRebate', 'agent_rebate') || '0');
+        return rebateA - rebateB;
+      }
+    },
+    {
+      title: '实际获得金额',
+      key: 'consumed_subsidy',
+      width: 130,
+      render: (_, record) => {
+        const amount = safeNumber(getFieldValue(record, 'consumedSubsidy', 'consumed_subsidy'));
+        return (
+          <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
+            ¥{amount.toFixed(2)}
+          </span>
+        );
+      },
+      sorter: (a, b) => {
+        const amountA = safeNumber(getFieldValue(a, 'consumedSubsidy', 'consumed_subsidy'));
+        const amountB = safeNumber(getFieldValue(b, 'consumedSubsidy', 'consumed_subsidy'));
+        return amountA - amountB;
       }
     },
     {
@@ -192,6 +255,33 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
         if (!dateA || !dateB) return 0;
         return new Date(dateA).getTime() - new Date(dateB).getTime();
       }
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 100,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm
+            title="确定要删除这个学生的补贴池吗？"
+            description="删除后该学生的补贴记录将被软删除，如有未完成任务将无法删除。"
+            onConfirm={() => handleDeletePool(Number(record.id))}
+            okText="确定"
+            cancelText="取消"
+            okType="danger"
+          >
+            <Button
+              type="link"
+              size="small"
+              icon={<DeleteOutlined />}
+              danger
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
+      )
     }
   ];
 
@@ -214,6 +304,13 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
           showQuickJumper: true,
           showTotal: (total, range) => 
             `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          locale: {
+            items_per_page: '/页',
+            jump_to: '跳至',
+            jump_to_confirm: '确定',
+            page: '页'
+          },
           onChange: onChange,
           onShowSizeChange: onChange
         }}

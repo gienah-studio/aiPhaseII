@@ -25,6 +25,8 @@ from services.auth_service.routers import auth # 认证服务
 # 导入虚拟订单服务的路由
 from services.virtual_order_service.routes import virtual_order_routes
 from services.virtual_order_service.routes import bonus_pool_routes
+# 导入资源库服务的路由
+from services.resource_service.routes import resource_routes
 # 导入定时任务调度器
 from services.virtual_order_service.service.task_scheduler import start_background_tasks, stop_background_tasks
 
@@ -32,6 +34,20 @@ from services.virtual_order_service.service.task_scheduler import start_backgrou
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时执行
+    print("初始化系统配置...")
+    # 初始化自动确认配置
+    from shared.database.session import SessionLocal
+    from services.virtual_order_service.service.config_service import ConfigService
+
+    db = SessionLocal()
+    try:
+        config_service = ConfigService(db)
+        config_service.init_auto_confirm_config()
+    except Exception as e:
+        print(f"初始化配置失败: {e}")
+    finally:
+        db.close()
+
     print("启动虚拟订单定时任务调度器...")
     # 在后台启动定时任务
     task = asyncio.create_task(start_background_tasks())
@@ -125,7 +141,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
-# 配置CORS
+# 添加异常处理中间件（最先执行）
+app.add_middleware(ExceptionMiddleware)
+
+# 添加认证中间件
+app.add_middleware(AuthMiddleware)
+
+# 添加自定义中间件
+app.add_middleware(DatetimeMiddleware)
+app.add_middleware(CamelCaseMiddleware)
+
+# 配置CORS（放在最后，这样会最先处理预检请求）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -133,16 +159,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# # 添加自定义中间件
-app.add_middleware(CamelCaseMiddleware)
-app.add_middleware(DatetimeMiddleware)
-
-# 添加认证中间件(要在操作日志中间件之前)
-app.add_middleware(AuthMiddleware)
-
-# 添加异常处理中间件（放在最后面，这样它会最先执行）
-app.add_middleware(ExceptionMiddleware)
 
 # 注册认证服务的路由
 app.include_router(auth.router, prefix="/api/auth", tags=["认证服务"])
@@ -152,6 +168,9 @@ app.include_router(virtual_order_routes.router, prefix="/api/virtualOrders", tag
 
 # 注册奖金池管理路由
 app.include_router(bonus_pool_routes.router, prefix="/api", tags=["奖金池管理"])
+
+# 注册资源库管理路由
+app.include_router(resource_routes.router, tags=["资源库管理"])
 
 @app.get("/")
 async def root():

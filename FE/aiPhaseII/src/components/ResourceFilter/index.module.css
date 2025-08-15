@@ -1,0 +1,177 @@
+.resourceFilter {
+  margin-bottom: 16px;
+}
+
+.searchCard {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+}
+
+.searchArea {
+  margin-bottom: 16px;
+}
+
+.advancedFilter {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.advancedFilter .ant-collapse-header {
+  padding: 12px 0 !important;
+}
+
+.filterItem {
+  width: 100%;
+}
+
+.filterLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #1c1c1c;
+  font-size: 14px;
+}
+
+.rangeDisplay {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.batchActionsCard {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+  border-left: 4px solid #1890ff;
+}
+
+.batchActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selectionInfo {
+  display: flex;
+  align-items: center;
+}
+
+.selectionInfo .ant-checkbox-wrapper {
+  color: #1890ff;
+  font-weight: 500;
+}
+
+.activeFilters {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+}
+
+.activeFilters .ant-tag {
+  margin: 2px 4px 2px 0;
+  background: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+  font-size: 12px;
+}
+
+.activeFilters .ant-tag-close-icon {
+  color: #1890ff;
+}
+
+.activeFilters .ant-tag-close-icon:hover {
+  color: #40a9ff;
+}
+
+/* 滑块样式自定义 */
+.filterItem .ant-slider {
+  margin: 16px 0;
+}
+
+.filterItem .ant-slider-rail {
+  background-color: #f5f5f5;
+}
+
+.filterItem .ant-slider-track {
+  background-color: #1890ff;
+}
+
+.filterItem .ant-slider-handle {
+  border-color: #1890ff;
+}
+
+.filterItem .ant-slider-handle:hover,
+.filterItem .ant-slider-handle:focus {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 5px rgba(24, 144, 255, 0.12);
+}
+
+.filterItem .ant-slider-mark-text {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+/* 多选框样式 */
+.filterItem .ant-select-multiple .ant-select-selection-item {
+  background: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .searchArea .ant-space {
+    width: 100%;
+  }
+  
+  .searchArea .ant-space-item {
+    width: 100%;
+  }
+  
+  .searchArea .ant-input-search,
+  .searchArea .ant-select,
+  .searchArea .ant-picker {
+    width: 100% !important;
+  }
+  
+  .batchActions {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .filterItem {
+    margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 576px) {
+  .resourceFilter {
+    margin: 0 -12px;
+  }
+  
+  .searchCard,
+  .batchActionsCard {
+    margin: 0 12px 16px 12px;
+    border-radius: 8px;
+  }
+  
+  .activeFilters {
+    margin: 0 12px 16px 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+  }
+  
+  .filterLabel {
+    font-size: 13px;
+  }
+  
+  .rangeDisplay {
+    font-size: 11px;
+  }
+}

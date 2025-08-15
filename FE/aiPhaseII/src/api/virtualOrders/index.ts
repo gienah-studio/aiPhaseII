@@ -108,6 +108,14 @@ export const reallocateStudentTasks = async (studentId: number): Promise<Realloc
 };
 
 /**
+ * 删除学生补贴池
+ */
+export const deleteStudentPool = async (poolId: number): Promise<{ deleted: boolean; message: string }> => {
+  const response = await request.delete<ApiResponse<{ deleted: boolean; message: string }>>(`/virtualOrders/studentPools/${poolId}`);
+  return response.data;
+};
+
+/**
  * 导出学生收入数据
  */
 export const exportStudentIncome = async (params?: StudentIncomeSummaryParams & { student_ids?: number[] }): Promise<Blob> => {

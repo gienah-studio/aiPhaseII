@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, 
 from sqlalchemy.orm import Session
 from typing import Optional, List
 import uuid
+import logging
 from datetime import datetime, date
 from fastapi.responses import StreamingResponse
+
+logger = logging.getLogger(__name__)
 import io
 
 from shared.database.session import get_db
@@ -28,7 +31,8 @@ from ..schemas.virtual_order_schemas import (
     VirtualCustomerServiceDeleteResponse,
     StudentIncomeExportRequest,
     StudentIncomeExportResponse,
-    StudentIncomeSummaryResponse
+    StudentIncomeSummaryResponse,
+    StudentPoolDeleteResponse
 )
 from ..service.virtual_order_service import VirtualOrderService
 from ..utils.excel_utils import ExcelProcessor
@@ -67,9 +71,11 @@ async def import_student_subsidy(
         # 生成导入批次号
         import_batch = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
         
-        # 执行导入
+        # 执行导入（使用虚拟客服分配策略）
         service = VirtualOrderService(db)
-        result = service.import_student_subsidy_data(valid_data, import_batch)
+        result = service.import_student_subsidy_data_with_service_allocation(
+            valid_data, import_batch, use_service_allocation=True
+        )
         
         return ResponseSchema[StudentSubsidyImportResponse](
             code=200,
@@ -191,7 +197,7 @@ async def reallocate_student_tasks(
     """重新分配学生任务"""
     try:
         service = VirtualOrderService(db)
-        result = service.reallocate_student_tasks(student_id)
+        result = service.reallocate_student_tasks_with_service_allocation(student_id)
         
         return ResponseSchema[ReallocateTasksResponse](
             code=200,
@@ -203,6 +209,32 @@ async def reallocate_student_tasks(
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"重新分配任务失败: {str(e)}")
+
+@router.delete(
+    "/studentPools/{pool_id}",
+    response_model=ResponseSchema[StudentPoolDeleteResponse],
+    summary="删除学生补贴池",
+    description="软删除指定的学生补贴池记录，删除前会检查是否有未完成的虚拟任务"
+)
+async def delete_student_pool(
+    pool_id: int,
+    db: Session = Depends(get_db)
+):
+    """删除学生补贴池（软删除）"""
+    try:
+        service = VirtualOrderService(db)
+        result = service.delete_student_pool(pool_id)
+        
+        return ResponseSchema[StudentPoolDeleteResponse](
+            code=200,
+            message="删除成功",
+            data=StudentPoolDeleteResponse(**result)
+        )
+        
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除学生补贴池失败: {str(e)}")
 
 # ==================== 虚拟客服管理接口 ====================
 
@@ -452,3 +484,139 @@ async def manual_check_expired_tasks():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"手动检查过期任务失败: {str(e)}")
+
+@router.post(
+    "/manualCheckAutoConfirmTasks",
+    response_model=ResponseSchema[dict],
+    summary="手动检查自动确认任务",
+    description="手动触发虚拟任务自动确认检查，确认提交超过1小时的任务"
+)
+async def manual_check_auto_confirm_tasks():
+    """手动检查自动确认任务"""
+    try:
+        from ..service.task_scheduler import manual_check_auto_confirm
+        await manual_check_auto_confirm()
+
+        return ResponseSchema[dict](
+            code=200,
+            message="自动确认任务检查完成",
+            data={"status": "completed"}
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"手动检查自动确认任务失败: {str(e)}")
+
+@router.get(
+    "/autoConfirmConfig",
+    response_model=ResponseSchema[dict],
+    summary="获取自动确认配置",
+    description="获取虚拟任务自动确认的相关配置"
+)
+async def get_auto_confirm_config(db: Session = Depends(get_db)):
+    """获取自动确认配置"""
+    try:
+        from ..service.config_service import ConfigService
+        config_service = ConfigService(db)
+        config = config_service.get_auto_confirm_config()
+
+        return ResponseSchema[dict](
+            code=200,
+            message="获取配置成功",
+            data=config
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取自动确认配置失败: {str(e)}")
+
+@router.post(
+    "/autoConfirmConfig",
+    response_model=ResponseSchema[dict],
+    summary="更新自动确认配置",
+    description="更新虚拟任务自动确认的相关配置"
+)
+async def update_auto_confirm_config(
+    enabled: bool = Query(True, description="是否启用自动确认"),
+    interval_hours: float = Query(1.0, description="自动确认时间间隔（小时）"),
+    max_batch_size: int = Query(100, description="单次处理最大数量"),
+    db: Session = Depends(get_db)
+):
+    """更新自动确认配置"""
+    try:
+        from ..service.config_service import ConfigService
+        config_service = ConfigService(db)
+
+        # 更新配置
+        config_service.set_config('auto_confirm_enabled', enabled, 'string', '是否启用虚拟任务自动确认功能')
+        config_service.set_config('auto_confirm_interval_hours', interval_hours, 'number', '自动确认时间间隔（小时）')
+        config_service.set_config('auto_confirm_max_batch_size', max_batch_size, 'number', '单次自动确认最大处理数量')
+
+        return ResponseSchema[dict](
+            code=200,
+            message="配置更新成功",
+            data={
+                "enabled": enabled,
+                "interval_hours": interval_hours,
+                "max_batch_size": max_batch_size
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新自动确认配置失败: {str(e)}")
+
+@router.post(
+    "/resetStudentPool/{student_id}",
+    response_model=ResponseSchema[dict],
+    summary="重置学生补贴池",
+    description="重置学生补贴池的完成状态，清空已完成金额和消耗补贴，重新生成任务"
+)
+async def reset_student_pool(
+    student_id: int,
+    db: Session = Depends(get_db)
+):
+    """重置学生补贴池"""
+    try:
+        service = VirtualOrderService(db)
+        result = service.reset_student_pool(student_id)
+
+        return ResponseSchema[dict](
+            code=200,
+            message="学生补贴池重置成功",
+            data=result
+        )
+
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重置学生补贴池失败: {str(e)}")
+
+@router.post(
+    "/processCompletedTaskRemainingValue/{task_id}",
+    response_model=ResponseSchema[dict],
+    summary="处理已完成任务的剩余价值",
+    description="为已完成但没有处理剩余价值的任务重新生成新任务"
+)
+async def process_completed_task_remaining_value(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+    """处理已完成任务的剩余价值"""
+    try:
+        service = VirtualOrderService(db)
+        result = service.process_completed_task_remaining_value(task_id)
+
+        if result['success']:
+            return ResponseSchema[dict](
+                code=200,
+                message=result['message'],
+                data=result
+            )
+        else:
+            return ResponseSchema[dict](
+                code=400,
+                message=result['message'],
+                data=result
+            )
+
+    except Exception as e:
+        logger.error(f"处理已完成任务剩余价值失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")

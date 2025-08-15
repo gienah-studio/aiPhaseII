@@ -40,3 +40,80 @@ purchase_intention.sql
 .vscode
 .idea
 # notes
+
+# ========== 新增忽略规则 ==========
+
+# Python 字节码和缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 构建和打包文件
+*.spec
+main.spec
+
+# 测试脚本（不需要提交的本地测试文件）
+test_*.py
+simple_test.py
+quick_test_generation.py
+example_virtual_cs.py
+create_test_student.py
+check_missing_deps.py
+run_all_tests.py
+
+# 临时修复脚本
+fix_*.py
+
+# 临时文件和目录
+temp/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# Excel 测试数据文件
+*.xlsx
+*.xls
+!scripts/副本导入模版（员工与企业）.xlsx  # 保留模板文件
+
+# 日志文件
+*.log
+logs/
+
+# 依赖记录文件
+missing_dependencies.txt
+requirements_auth_template.txt
+
+# 字体文件（较大，不需要版本控制）
+*.ttf
+*.ttc
+static/fonts/
+
+# 上传的文件和生成的PDF
+static/uploads/
+static/pdf/
+
+# 测试报告（可选择性保留）
+TEST_REPORT.md
+API_TESTING_SUMMARY.md
+
+# 文档草稿和模板
+README_AUTH_TEMPLATE.md
+VIRTUAL_ORDER_README.md
+VIRTUAL_TASK_UPDATES.md
+
+# 个人笔记和临时文档
+notes/*.txt
+notes/sql.sql
+
+# macOS 系统文件
+.DS_Store
+
+# pip 配置
+pip.conf
+
+# 数据库迁移缓存
+alembic/versions/__pycache__/
+migrations/versions/__pycache__/

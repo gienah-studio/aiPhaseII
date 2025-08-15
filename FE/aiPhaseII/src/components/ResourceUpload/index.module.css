@@ -1,0 +1,243 @@
+.resourceUpload {
+  width: 100%;
+}
+
+.uploadCard {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.uploadTabs .ant-tabs-tab {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.uploadContent {
+  margin-bottom: 24px;
+}
+
+.uploadDragger {
+  background: #fafafa !important;
+  border: 2px dashed #d9d9d9 !important;
+  border-radius: 12px !important;
+  transition: all 0.3s ease;
+}
+
+.uploadDragger:hover {
+  border-color: #40a9ff !important;
+  background: #f0f9ff !important;
+}
+
+.uploadDragger.ant-upload-drag-hover {
+  border-color: #1890ff !important;
+  background: #e6f7ff !important;
+}
+
+.uploadDragger .ant-upload-drag-icon {
+  margin-bottom: 16px;
+}
+
+.uploadDragger .ant-upload-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1c1c1c;
+  margin-bottom: 8px;
+}
+
+.uploadDragger .ant-upload-hint {
+  color: #8c8c8c;
+  font-size: 14px;
+}
+
+.uploadProgress {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.uploadProgress .ant-progress {
+  margin-bottom: 8px;
+}
+
+.fileList {
+  margin-top: 24px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.fileList .ant-typography {
+  margin-bottom: 16px;
+  color: #1c1c1c;
+}
+
+.filePreview {
+  height: 120px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.filePreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.filePreview:hover img {
+  transform: scale(1.05);
+}
+
+.batchTips {
+  margin-top: 24px;
+  padding: 16px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 8px;
+}
+
+.batchTips .ant-typography {
+  color: #389e0d;
+  margin-bottom: 12px;
+}
+
+.batchTips ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #52c41a;
+}
+
+.batchTips li {
+  margin-bottom: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.uploadActions {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Form 样式增强 */
+.resourceUpload .ant-form-item-label > label {
+  font-weight: 500;
+  color: #1c1c1c;
+}
+
+.resourceUpload .ant-rate {
+  font-size: 20px;
+}
+
+.resourceUpload .ant-select-multiple .ant-select-selection-item {
+  background: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .uploadDragger .ant-upload-text {
+    font-size: 14px;
+  }
+  
+  .uploadDragger .ant-upload-hint {
+    font-size: 12px;
+  }
+  
+  .filePreview {
+    height: 80px;
+  }
+  
+  .uploadActions {
+    text-align: left;
+  }
+  
+  .uploadActions .ant-space {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 576px) {
+  .resourceUpload {
+    margin: 0 -12px;
+  }
+  
+  .uploadCard {
+    margin: 0 12px;
+    border-radius: 8px;
+  }
+  
+  .uploadTabs .ant-tabs-tab {
+    font-size: 14px;
+  }
+  
+  .fileList {
+    margin: 16px -16px 0 -16px;
+    border-radius: 0;
+  }
+  
+  .batchTips {
+    margin: 16px -16px 0 -16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .uploadActions .ant-space {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .uploadActions .ant-btn {
+    width: 100%;
+  }
+}
+
+/* 上传列表样式 */
+.resourceUpload .ant-upload-list-picture-card-container {
+  width: 104px;
+  height: 104px;
+}
+
+.resourceUpload .ant-upload-list-picture-card .ant-upload-list-item {
+  border-radius: 8px;
+}
+
+.resourceUpload .ant-upload-select-picture-card {
+  width: 104px;
+  height: 104px;
+  border-radius: 8px;
+  border: 2px dashed #d9d9d9;
+  background: #fafafa;
+}
+
+.resourceUpload .ant-upload-select-picture-card:hover {
+  border-color: #40a9ff;
+}
+
+/* 预览弹窗样式 */
+.resourceUpload .ant-modal-header {
+  border-radius: 12px 12px 0 0;
+}
+
+.resourceUpload .ant-modal-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.resourceUpload .ant-modal-body {
+  padding: 0;
+}
+
+.resourceUpload .ant-modal-body img {
+  border-radius: 0 0 12px 12px;
+}

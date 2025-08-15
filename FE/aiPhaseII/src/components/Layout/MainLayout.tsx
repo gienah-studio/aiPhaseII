@@ -15,7 +15,8 @@ import {
   LogoutOutlined,
   DownOutlined,
   TeamOutlined,
-  DollarOutlined
+  DollarOutlined,
+  FolderOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks';
@@ -73,9 +74,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       label: '收入统计',
     },
     {
-      key: ROUTES.TEST_INCOME,
-      icon: <DollarOutlined />,
-      label: 'API测试',
+      key: ROUTES.RESOURCE_MANAGEMENT,
+      icon: <FolderOutlined />,
+      label: '资源库管理',
     },
   ];
 

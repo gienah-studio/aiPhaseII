@@ -540,25 +540,38 @@ class AuthService:
                 original_commission = Decimal('0.00')
 
                 for task in completed_tasks:
-                    if task.accepted_by and task.commission:
-                        # 检查当前学员ID是否在accepted_by中（逗号分隔）
-                        accepted_user_ids = task.accepted_by.split(',')
-                        if str(student.roleId) in accepted_user_ids:
-                            commission = Decimal(str(task.commission))
-                            original_commission += commission
+                    is_student_task = False
+                    
+                    # 判断任务是否属于该学生
+                    if hasattr(task, 'is_virtual') and task.is_virtual:
+                        # 虚拟任务：通过target_student_id判断
+                        if hasattr(task, 'target_student_id') and task.target_student_id == student.roleId:
+                            is_student_task = True
+                            print(f"[DEBUG] 虚拟任务 {task.id} 属于学生 {student.roleId} (通过target_student_id)")
+                    else:
+                        # 普通任务：通过accepted_by判断
+                        if task.accepted_by:
+                            accepted_user_ids = task.accepted_by.split(',')
+                            if str(student.roleId) in accepted_user_ids:
+                                is_student_task = True
+                                print(f"[DEBUG] 普通任务 {task.id} 属于学生 {student.roleId} (通过accepted_by)")
+                    
+                    if is_student_task and task.commission:
+                        commission = Decimal(str(task.commission))
+                        original_commission += commission
 
-                            # 区分虚拟任务和普通任务的处理逻辑
-                            if hasattr(task, 'is_virtual') and task.is_virtual:
-                                # 虚拟任务：学员直接获得全部佣金，不需要代理返佣
-                                actual_commission = commission
-                                print(f"[DEBUG] 虚拟任务 {task.id}: 佣金 {commission}, 实际收入 {actual_commission} (无返佣)")
-                            else:
-                                # 普通任务：按代理返佣比例计算实际收入
-                                actual_commission = commission * agent_rebate_decimal
-                                print(f"[DEBUG] 普通任务 {task.id}: 佣金 {commission}, 返佣比例 {agent_rebate_decimal}, 实际收入 {actual_commission}")
+                        # 区分虚拟任务和普通任务的处理逻辑
+                        if hasattr(task, 'is_virtual') and task.is_virtual:
+                            # 虚拟任务：学员直接获得全部佣金，不需要代理返佣
+                            actual_commission = commission
+                            print(f"[DEBUG] 虚拟任务 {task.id}: 佣金 {commission}, 实际收入 {actual_commission} (无返佣)")
+                        else:
+                            # 普通任务：按代理返佣比例计算实际收入
+                            actual_commission = commission * agent_rebate_decimal
+                            print(f"[DEBUG] 普通任务 {task.id}: 佣金 {commission}, 返佣比例 {agent_rebate_decimal}, 实际收入 {actual_commission}")
 
-                            total_commission += actual_commission
-                            completed_orders += 1
+                        total_commission += actual_commission
+                        completed_orders += 1
 
                 # 计算虚拟任务和普通任务的统计
                 virtual_commission = Decimal('0.00')
@@ -567,16 +580,30 @@ class AuthService:
                 normal_orders = 0
 
                 for task in completed_tasks:
-                    if task.accepted_by and task.commission:
-                        accepted_user_ids = task.accepted_by.split(',')
-                        if str(student.roleId) in accepted_user_ids:
-                            commission = Decimal(str(task.commission))
-                            if hasattr(task, 'is_virtual') and task.is_virtual:
-                                virtual_commission += commission
-                                virtual_orders += 1
-                            else:
-                                normal_commission += commission
-                                normal_orders += 1
+                    is_student_task = False
+                    
+                    # 判断任务是否属于该学生
+                    if hasattr(task, 'is_virtual') and task.is_virtual:
+                        # 虚拟任务：通过target_student_id判断
+                        if hasattr(task, 'target_student_id') and task.target_student_id == student.roleId:
+                            is_student_task = True
+                    else:
+                        # 普通任务：通过accepted_by判断
+                        if task.accepted_by:
+                            accepted_user_ids = task.accepted_by.split(',')
+                            if str(student.roleId) in accepted_user_ids:
+                                is_student_task = True
+                    
+                    if is_student_task and task.commission:
+                        commission = Decimal(str(task.commission))
+                        if hasattr(task, 'is_virtual') and task.is_virtual:
+                            # 虚拟任务：直接获得全部佣金
+                            virtual_commission += commission
+                            virtual_orders += 1
+                        else:
+                            # 普通任务：按返佣比例计算
+                            normal_commission += commission * agent_rebate_decimal
+                            normal_orders += 1
 
                 # 添加学员统计数据（使用驼峰命名，会被中间件转换）
                 student_stat = {
@@ -594,6 +621,9 @@ class AuthService:
                     # 移除 agent_id 字段
                 }
                 students_stats.append(student_stat)
+
+            # 按完成订单数从大到小排序
+            students_stats.sort(key=lambda x: x["yesterday_completed_orders"], reverse=True)
 
             # 计算分页
             total_students = len(students_stats)

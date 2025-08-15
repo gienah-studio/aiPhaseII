@@ -10,3 +10,9 @@ export { default as VirtualOrderStatsChart } from './Charts/VirtualOrderStatsCha
 
 // 业务组件
 export { default as StudentPoolTable } from './StudentPool/StudentPoolTable';
+
+// 资源管理组件
+export * from './ResourceList';
+export { default as ResourceFilter } from './ResourceFilter';
+export { default as ResourceUpload } from './ResourceUpload';
+export { default as CategoryManager } from './CategoryManager';

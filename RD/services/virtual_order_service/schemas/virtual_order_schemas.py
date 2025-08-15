@@ -48,6 +48,9 @@ class StudentPoolInfo(BaseModel):
     remaining_amount: Decimal
     allocated_amount: Decimal
     completed_amount: Decimal
+    consumed_subsidy: Decimal
+    completion_rate: float
+    agent_rebate: Optional[str]
     status: str
     import_batch: Optional[str]
     created_at: datetime
@@ -205,3 +208,14 @@ class StudentIncomeStatsResponse(BaseModel):
     average_income_per_student: float = Field(..., description="学生平均收入")
     average_income_per_task: float = Field(..., description="任务平均收入")
     date_range: dict = Field(..., description="日期范围")
+
+# 学生补贴池删除相关模型
+class StudentPoolDeleteResponse(BaseModel):
+    """删除学生补贴池响应"""
+    id: int = Field(..., description="补贴池ID")
+    student_id: int = Field(..., description="学生ID")
+    student_name: str = Field(..., description="学生姓名")
+    total_subsidy: float = Field(..., description="总补贴金额")
+    remaining_amount: float = Field(..., description="剩余金额")
+    deleted: bool = Field(..., description="是否已删除")
+    deleted_at: str = Field(..., description="删除时间")

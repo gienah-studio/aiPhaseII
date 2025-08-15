@@ -3,4 +3,4 @@ export { default as Home } from './Home';
 export { default as CustomerService } from './CustomerService';
 export { default as StudentModule } from './StudentModule';
 export { default as StudentIncome } from './StudentIncome';
-export { default as TestIncome } from './TestIncome';
+export { default as ResourceManagement } from './ResourceManagement';

@@ -382,7 +382,12 @@ const CustomerService: React.FC = () => {
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
             pageSizeOptions: ['10', '20', '50', '100'],
-            showSizeChanger: true,
+            locale: {
+              items_per_page: '/页',
+              jump_to: '跳至',
+              jump_to_confirm: '确定',
+              page: '页'
+            },
             showLessItems: true,
             onChange: handleTableChange,
             onShowSizeChange: handleTableChange,
@@ -398,7 +403,7 @@ const CustomerService: React.FC = () => {
         onOk={handleSubmit}
         onCancel={handleCloseModal}
         width={600}
-        destroyOnClose
+        destroyOnHidden
         okText="确定"
         cancelText="取消"
       >

@@ -9,8 +9,10 @@ from shared.models.student_daily_achievement import StudentDailyAchievement
 from shared.models.system_config import SystemConfig
 from shared.models.tasks import Tasks
 from shared.models.userinfo import UserInfo
+from shared.models.agents import Agents
 from shared.exceptions import BusinessException
 from .virtual_order_service import VirtualOrderService
+import math
 
 class BonusPoolService:
     """奖金池服务类"""
@@ -58,27 +60,35 @@ class BonusPoolService:
         if not student:
             raise BusinessException(code=404, msg="学生不存在")
         
-        # 计算当日完成的虚拟任务金额
+        # 计算当日完成的虚拟任务金额（面值）
         # 只统计已完成的虚拟任务
-        completed_amount = self.db.query(func.sum(Tasks.commission)).filter(
+        completed_face_value = self.db.query(func.sum(Tasks.commission)).filter(
             Tasks.target_student_id == student_id,
             Tasks.is_virtual == True,
             Tasks.payment_status.in_(['3', '4']),  # 可结算或已结算
             func.date(Tasks.created_at) == target_date
         ).scalar() or Decimal('0')
         
+        # 获取学生的返佣比例
+        rebate_rate = self.virtual_order_service.get_student_rebate_rate(student_id)
+        
+        # 计算实际消耗的补贴（面值 × 返佣比例）
+        consumed_subsidy = completed_face_value * rebate_rate
+        
         # 获取每日目标
         daily_target = self.get_daily_target()
         
-        # 判断是否达标
-        is_achieved = completed_amount >= daily_target
+        # 判断是否达标（基于实际消耗的补贴）
+        is_achieved = consumed_subsidy >= daily_target
         
         return {
             'student_id': student_id,
             'student_name': student.name,
             'achievement_date': target_date,
             'daily_target': daily_target,
-            'completed_amount': completed_amount,
+            'completed_face_value': completed_face_value,  # 任务面值
+            'consumed_subsidy': consumed_subsidy,  # 实际消耗的补贴
+            'rebate_rate': float(rebate_rate),  # 返佣比例
             'is_achieved': is_achieved
         }
     
@@ -118,17 +128,17 @@ class BonusPoolService:
                 ).first()
                 
                 if achievement:
-                    # 更新现有记录
-                    achievement.completed_amount = achievement_data['completed_amount']
+                    # 更新现有记录（使用实际消耗的补贴）
+                    achievement.completed_amount = achievement_data['consumed_subsidy']
                     achievement.is_achieved = achievement_data['is_achieved']
                 else:
-                    # 创建新记录
+                    # 创建新记录（使用实际消耗的补贴）
                     achievement = StudentDailyAchievement(
                         student_id=student.roleId,
                         student_name=achievement_data['student_name'],
                         achievement_date=target_date,
                         daily_target=achievement_data['daily_target'],
-                        completed_amount=achievement_data['completed_amount'],
+                        completed_amount=achievement_data['consumed_subsidy'],  # 使用实际消耗的补贴
                         is_achieved=achievement_data['is_achieved']
                     )
                     self.db.add(achievement)
@@ -308,17 +318,34 @@ class BonusPoolService:
         qualified_students = self.db.query(StudentDailyAchievement).filter(
             StudentDailyAchievement.achievement_date == yesterday,
             StudentDailyAchievement.is_achieved == True
-        ).count()
+        ).all()
         
-        if qualified_students == 0:
+        if not qualified_students:
             return {
                 'success': False,
                 'message': '没有达标学生，无法生成奖金池任务',
                 'generated_tasks': 0
             }
         
-        # 使用虚拟任务生成逻辑计算任务分配
-        task_amounts = self.virtual_order_service.calculate_task_amounts(bonus_pool.remaining_amount)
+        # 计算达标学生的平均返佣比例
+        total_rebate_rate = Decimal('0')
+        valid_students = 0
+        
+        for achievement in qualified_students:
+            rebate_rate = self.virtual_order_service.get_student_rebate_rate(achievement.student_id)
+            if rebate_rate > 0:
+                total_rebate_rate += rebate_rate
+                valid_students += 1
+        
+        # 使用平均返佣比例，如果没有有效学生则使用默认值0.6
+        avg_rebate_rate = total_rebate_rate / valid_students if valid_students > 0 else Decimal('0.6')
+        
+        # 计算任务总面值：奖金池金额 / 平均返佣比例，向上取整
+        total_face_value = bonus_pool.remaining_amount / avg_rebate_rate
+        total_face_value = Decimal(math.ceil(float(total_face_value) * 100) / 100)
+        
+        # 使用虚拟任务生成逻辑计算任务分配（基于面值）
+        task_amounts = self.virtual_order_service.calculate_task_amounts(total_face_value)
         
         # 生成任务
         generated_tasks = []
@@ -399,10 +426,9 @@ class BonusPoolService:
         # 计算回收金额
         recycled_amount = sum(task.commission for task in expired_tasks)
         
-        # 标记任务为过期
+        # 删除过期任务（与普通虚拟任务保持一致）
         for task in expired_tasks:
-            task.status = '5'  # 终止/过期
-            task.message = '奖金池任务过期，金额重新生成'
+            self.db.delete(task)
         
         # 更新奖金池
         bonus_pool = self.db.query(BonusPool).filter(

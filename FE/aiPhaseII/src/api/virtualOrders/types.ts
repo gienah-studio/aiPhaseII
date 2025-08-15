@@ -20,6 +20,9 @@ export interface StudentPoolItem {
   remainingAmount?: number;
   allocatedAmount?: number;
   completedAmount?: number;
+  consumedSubsidy?: number;
+  completionRate?: number;
+  agentRebate?: string;
   status: string;
   importBatch?: string;
   createdAt?: string;

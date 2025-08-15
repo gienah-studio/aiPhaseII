@@ -2,7 +2,7 @@ import React from 'react';
 import { ConfigProvider } from 'antd';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages';
-import { Home, CustomerService, StudentModule, StudentIncome, TestIncome } from './pages/dashboard';
+import { Home, CustomerService, StudentModule, StudentIncome, ResourceManagement } from './pages/dashboard';
 import { MessageProvider, MainLayout } from './components';
 import { useAuth } from './hooks';
 import { ROUTES } from './constants';
@@ -82,16 +82,15 @@ function App() {
               }
             />
             <Route
-              path={ROUTES.TEST_INCOME}
+              path={ROUTES.RESOURCE_MANAGEMENT}
               element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <TestIncome />
+                    <ResourceManagement />
                   </AppLayout>
                 </ProtectedRoute>
               }
             />
-
             {/* 默认重定向到首页 */}
             <Route path="/" element={<Navigate to={ROUTES.HOME} replace />} />
 

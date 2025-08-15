@@ -150,6 +150,10 @@ const Home: React.FC = () => {
           current={poolsPagination.current}
           pageSize={poolsPagination.pageSize}
           onChange={handlePageChange}
+          onDelete={() => {
+            fetchStudentPools();
+            fetchStatsData();
+          }}
         />
       </div>
     </div>

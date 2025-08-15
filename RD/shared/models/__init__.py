@@ -12,6 +12,14 @@ from shared.models.virtual_order_pool import VirtualOrderPool
 from shared.models.virtual_order_reports import VirtualOrderReports
 from shared.models.virtual_customer_service import VirtualCustomerService
 
+# 资源库系统模型
+from shared.models.resource_categories import ResourceCategories
+from shared.models.resource_upload_batches import ResourceUploadBatches
+from shared.models.resource_images import ResourceImages
+
+# 学生任务系统模型
+from shared.models.studenttask import StudentTask
+
 # 导出所有模型
 __all__ = [
     'BaseModel',
@@ -24,4 +32,8 @@ __all__ = [
     'VirtualOrderPool',
     'VirtualOrderReports',
     'VirtualCustomerService',
+    'ResourceCategories',
+    'ResourceUploadBatches',
+    'ResourceImages',
+    'StudentTask',
 ]

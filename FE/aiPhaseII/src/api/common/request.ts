@@ -6,7 +6,7 @@ import type { ApiError } from './types';
 // 创建axios实例
 const request = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  // timeout: 10000, // 移除超时限制，允许长时间上传
   headers: {
     'Content-Type': 'application/json',
   },

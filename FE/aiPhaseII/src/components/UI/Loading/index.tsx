@@ -29,7 +29,11 @@ const Loading: React.FC<LoadingProps> = ({
       alignItems: 'center',
       minHeight: '200px'
     }}>
-      <Spin size={size} tip={tip} />
+      <Spin size={size}>
+        <div style={{ padding: '20px' }}>
+          {tip}
+        </div>
+      </Spin>
     </div>
   );
 };

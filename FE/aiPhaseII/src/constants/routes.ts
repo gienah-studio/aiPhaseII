@@ -6,5 +6,5 @@ export const ROUTES = {
   CUSTOMER_SERVICE: '/customer-service',
   STUDENT_MODULE: '/student-module',
   STUDENT_INCOME: '/student-income',
-  TEST_INCOME: '/test-income',
+  RESOURCE_MANAGEMENT: '/resource-management',
 } as const;

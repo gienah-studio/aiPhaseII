@@ -7,7 +7,6 @@ import {
   Table,
   Button,
   Space,
-  Input,
   Select,
   DatePicker,
   message,
@@ -17,18 +16,19 @@ import {
   Divider,
   Upload,
   Modal,
-  Spin
+  Spin,
+  Progress
 } from 'antd';
 import {
   SearchOutlined,
   ReloadOutlined,
   DownloadOutlined,
-  RedoOutlined,
   TeamOutlined,
   DollarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  UploadOutlined
+  UploadOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import {
   getStudentPools,
@@ -36,6 +36,7 @@ import {
   reallocateStudentTasks,
   exportStudentIncome,
   importStudentSubsidy,
+  deleteStudentPool,
   type StudentPoolItem,
   type StudentPoolParams,
   type StudentIncomeSummaryResponse,
@@ -79,7 +80,7 @@ const StudentModule: React.FC = () => {
         ...searchParams,
         ...params
       };
-      
+
       const response = await getStudentPools(queryParams);
       setPoolData(response.items);
       setPagination(prev => ({
@@ -144,6 +145,20 @@ const StudentModule: React.FC = () => {
     } catch (error) {
       message.error('重新分配任务失败');
       console.error('重新分配任务失败:', error);
+    }
+  };
+
+  // 删除学生补贴池
+  const handleDeletePool = async (poolId: number) => {
+    try {
+      await deleteStudentPool(poolId);
+      message.success('删除学生补贴池成功');
+      fetchPoolData();
+      fetchSummaryData();
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.message || '删除失败';
+      message.error(errorMsg);
+      console.error('删除学生补贴池失败:', error);
     }
   };
 
@@ -278,22 +293,18 @@ const StudentModule: React.FC = () => {
   // 表格列配置
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
+      title: '序号',
+      key: 'index',
       width: 80,
+      render: (_: any, __: any, index: number) => {
+        return (pagination.current - 1) * pagination.pageSize + index + 1;
+      },
     },
     {
       title: '学生姓名',
       key: 'student_name',
       width: 120,
       render: (_: any, record: StudentPoolItem) => getFieldValue(record, 'studentName', 'student_name') || '-'
-    },
-    {
-      title: '学生ID',
-      key: 'student_id',
-      width: 120,
-      render: (_: any, record: StudentPoolItem) => getFieldValue(record, 'studentId', 'student_id') || '-'
     },
     {
       title: '补贴金额',
@@ -338,14 +349,48 @@ const StudentModule: React.FC = () => {
     {
       title: '完成率',
       key: 'completion_rate',
-      width: 100,
+      width: 120,
       render: (_: any, record: StudentPoolItem) => {
-        const totalSubsidy = safeNumber(getFieldValue(record, 'totalSubsidy', 'subsidy_amount'));
-        const completedAmount = safeNumber(getFieldValue(record, 'completedAmount', 'tasks_completed'));
-        const rate = totalSubsidy > 0 ? (completedAmount / totalSubsidy) * 100 : 0;
+        // 优先使用后端返回的完成率，如果没有则前端计算（兼容性）
+        const backendRate = getFieldValue(record, 'completionRate', 'completion_rate');
+        let rate = 0;
+
+        if (backendRate !== undefined && backendRate !== null) {
+          rate = safeNumber(backendRate);
+        } else {
+          // 兼容性：如果后端没有返回完成率，使用实际消耗的补贴来计算
+          const totalSubsidy = safeNumber(getFieldValue(record, 'totalSubsidy', 'subsidy_amount'));
+          const consumedSubsidy = safeNumber(getFieldValue(record, 'consumedSubsidy', 'consumed_subsidy'));
+          rate = totalSubsidy > 0 ? (consumedSubsidy / totalSubsidy) * 100 : 0;
+        }
+
         return (
-          <span style={{ color: rate >= 80 ? '#52c41a' : rate >= 60 ? '#faad14' : '#ff4d4f' }}>
-            {rate.toFixed(1)}%
+          <Progress
+            percent={Math.round(rate)}
+            size="small"
+            status={rate === 100 ? 'success' : 'active'}
+          />
+        );
+      },
+    },
+    {
+      title: '返佣比例',
+      key: 'agent_rebate',
+      width: 120,
+      render: (_: any, record: StudentPoolItem) => {
+        const rebate = getFieldValue(record, 'agentRebate', 'agent_rebate');
+        return rebate ? `${rebate}%` : '-';
+      },
+    },
+    {
+      title: '实际获得金额',
+      key: 'consumed_subsidy',
+      width: 130,
+      render: (_: any, record: StudentPoolItem) => {
+        const amount = safeNumber(getFieldValue(record, 'consumedSubsidy', 'consumed_subsidy'));
+        return (
+          <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
+            ¥{amount.toFixed(2)}
           </span>
         );
       },
@@ -357,7 +402,7 @@ const StudentModule: React.FC = () => {
       width: 100,
       render: (status: string) => {
         const statusMap = {
-          'active': { color: 'green', text: '正常' },
+          'active': { color: 'green', text: '进行中' },
           'completed': { color: 'blue', text: '已完成' },
           'suspended': { color: 'orange', text: '暂停' },
           'expired': { color: 'red', text: '已过期' }
@@ -384,30 +429,32 @@ const StudentModule: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 180,
       fixed: 'right' as const,
       render: (_: any, record: StudentPoolItem) => {
         const remainingAmount = safeNumber(getFieldValue(record, 'remainingAmount', 'remaining_amount'));
         const studentId = getFieldValue(record, 'studentId', 'student_id');
+        const poolId = record.id;
 
         return (
           <Space size="small">
-            {remainingAmount > 0 && (
-              <Popconfirm
-                title="确定要重新分配这个学生的任务吗？"
-                onConfirm={() => handleReallocate(Number(studentId))}
-                okText="确定"
-                cancelText="取消"
+            <Popconfirm
+              title="确定要删除这个学生的补贴池吗？"
+              description="删除后该学生的补贴记录将被软删除，如有未完成任务将无法删除。"
+              onConfirm={() => handleDeletePool(Number(poolId))}
+              okText="确定"
+              cancelText="取消"
+              okType="danger"
+            >
+              <Button
+                type="link"
+                size="small"
+                icon={<DeleteOutlined />}
+                danger
               >
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<RedoOutlined />}
-                >
-                  重新分配
-                </Button>
-              </Popconfirm>
-            )}
+                删除
+              </Button>
+            </Popconfirm>
           </Space>
         );
       },
@@ -474,7 +521,7 @@ const StudentModule: React.FC = () => {
       <Card>
         <div className={styles.header}>
           <Title level={4}>学生补贴池管理</Title>
-          
+
           {/* 汇总数据操作区域 */}
           <div className={styles.summaryArea}>
             <Space wrap>
@@ -482,9 +529,9 @@ const StudentModule: React.FC = () => {
                 placeholder={['开始日期', '结束日期']}
                 onChange={handleDateRangeChange}
               />
-              <Button 
-                type="primary" 
-                icon={<SearchOutlined />} 
+              <Button
+                type="primary"
+                icon={<SearchOutlined />}
                 onClick={handleRefreshSummary}
                 loading={summaryLoading}
               >
@@ -507,7 +554,7 @@ const StudentModule: React.FC = () => {
           </div>
 
           <Divider />
-          
+
           {/* 搜索区域 */}
           <div className={styles.searchArea}>
             <Space wrap>
@@ -518,7 +565,7 @@ const StudentModule: React.FC = () => {
                 style={{ width: 120 }}
                 allowClear
               >
-                <Option value="active">正常</Option>
+                <Option value="active">进行中</Option>
                 <Option value="completed">已完成</Option>
                 <Option value="suspended">暂停</Option>
                 <Option value="expired">已过期</Option>
@@ -546,6 +593,13 @@ const StudentModule: React.FC = () => {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/共 ${total} 条`,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            locale: {
+              items_per_page: '/页',
+              jump_to: '跳至',
+              jump_to_confirm: '确定',
+              page: '页'
+            },
             onChange: handleTableChange,
             onShowSizeChange: handleTableChange,
           }}
