@@ -137,31 +137,37 @@ class VirtualOrderService:
         # 根据类型生成内容
         return self.generate_task_content_by_type(task_type)
     
-    def _select_task_type_by_weight(self) -> str:
+    def _select_task_type_by_weight(self, custom_weights: Dict[str, int] = None) -> str:
         """
         根据权重配置随机选择任务类型
-        
+
+        Args:
+            custom_weights: 自定义权重配置，如果为None则使用默认权重
+
         Returns:
             str: 选中的任务类型
         """
+        # 使用自定义权重或默认权重
+        weights = custom_weights if custom_weights is not None else self.TASK_TYPE_WEIGHTS
+
         # 计算累积权重
         cumulative_weights = []
         task_types = []
         total_weight = 0
-        
-        for task_type, weight in self.TASK_TYPE_WEIGHTS.items():
+
+        for task_type, weight in weights.items():
             total_weight += weight
             cumulative_weights.append(total_weight)
             task_types.append(task_type)
-        
+
         # 生成随机数
         random_value = random.randint(1, total_weight)
-        
+
         # 选择对应的任务类型
         for i, cumulative_weight in enumerate(cumulative_weights):
             if random_value <= cumulative_weight:
                 return task_types[i]
-        
+
         # 兜底返回第一个类型
         return task_types[0] if task_types else 'avatar_redesign'
     
@@ -427,9 +433,10 @@ class VirtualOrderService:
         amounts = []
         remaining = total_amount
 
-        # 如果金额小于等于5，直接返回一个任务
+        # 如果金额小于等于5，按新规则处理
         if remaining <= 5:
-            return [remaining]
+            # 小于8元的都生成5元任务
+            return [Decimal('5')]
 
         # 最小单位5元，最大单位25元
         min_amount = Decimal('5')
@@ -441,8 +448,8 @@ class VirtualOrderService:
         # 随机生成5-25之间的5的倍数任务
         while remaining > 0:
             if remaining <= min_amount:
-                # 剩余金额小于等于5元，作为最后一个任务
-                amounts.append(remaining)
+                # 剩余金额小于等于5元，按新规则生成5元任务
+                amounts.append(Decimal('5'))
                 break
             elif remaining < min_amount * 2:
                 # 剩余金额小于10元，按新规则处理
@@ -492,10 +499,24 @@ class VirtualOrderService:
         # 尝试从资源库获取参考图片（必须获取到才能创建任务）
         image_info = self._get_reference_image_for_task(task_content)
 
-        # 如果没有获取到参考图片，则不创建任务
+        # 如果没有获取到参考图片，尝试备用策略
         if not image_info:
-            logger.warning(f"无法为任务类型 {task_content.get('task_type', 'unknown')} 获取参考图片，停止创建任务")
-            return None
+            original_task_type = task_content.get('task_type', 'unknown')
+            logger.warning(f"无法为任务类型 {original_task_type} 获取参考图片，尝试备用策略")
+
+            # 如果是照片扩图类型没有图片，则只生成头像改版或装修风格
+            if original_task_type == 'photo_extension':
+                logger.info("照片扩图没有可用图片，改为生成头像改版或装修风格任务")
+                # 重新生成任务内容，排除照片扩图
+                task_content = self._generate_fallback_task_content()
+                image_info = self._get_reference_image_for_task(task_content)
+
+                if not image_info:
+                    logger.warning(f"备用策略也无法获取图片，停止创建任务")
+                    return None
+            else:
+                logger.warning(f"无法为任务类型 {original_task_type} 获取参考图片，停止创建任务")
+                return None
 
         # 提取图片URL和ID
         if isinstance(image_info, dict):
@@ -629,6 +650,25 @@ class VirtualOrderService:
             tasks.append(task)
 
         return tasks
+
+    def _generate_fallback_task_content(self) -> Dict[str, str]:
+        """
+        生成备用任务内容（排除照片扩图，只生成头像改版和装修风格）
+
+        Returns:
+            Dict[str, str]: 包含summary、requirement和task_type的字典
+        """
+        # 备用任务类型权重（排除照片扩图）
+        fallback_weights = {
+            'avatar_redesign': 75,     # 头像改版：75%
+            'room_decoration': 25      # 房间装修：25%
+        }
+
+        # 按权重选择任务类型
+        task_type = self._select_task_type_by_weight(fallback_weights)
+
+        # 根据类型生成内容
+        return self.generate_task_content_by_type(task_type)
 
     def import_student_subsidy_data(self, student_data: List[Dict], import_batch: str) -> Dict[str, Any]:
         """

@@ -23,16 +23,16 @@ import type { ApiResponse } from '../common/types';
 /**
  * 获取虚拟订单统计信息
  */
-export const getVirtualOrderStats = async (): Promise<VirtualOrderStats> => {
-  const response = await request.get<ApiResponse<VirtualOrderStats>>('/virtualOrders/stats');
+export const getVirtualOrderStats = async (): Promise<any> => {
+  const response = await request.get<any>('/virtualOrders/stats');
   return response.data;
 };
 
 /**
  * 获取学生补贴池列表
  */
-export const getStudentPools = async (params?: StudentPoolParams): Promise<StudentPoolListResponse> => {
-  const response = await request.get<ApiResponse<StudentPoolListResponse>>('/virtualOrders/studentPools', {
+export const getStudentPools = async (params?: StudentPoolParams): Promise<any> => {
+  const response = await request.get<any>('/virtualOrders/studentPools', {
     params
   });
   return response.data;
@@ -43,8 +43,8 @@ export const getStudentPools = async (params?: StudentPoolParams): Promise<Stude
 /**
  * 获取虚拟客服列表
  */
-export const getVirtualCustomerServices = async (params?: VirtualCustomerServiceParams): Promise<VirtualCustomerServiceListResponse> => {
-  const response = await request.get<ApiResponse<VirtualCustomerServiceListResponse>>('/virtualOrders/customerService', {
+export const getVirtualCustomerServices = async (params?: VirtualCustomerServiceParams): Promise<any> => {
+  const response = await request.get<any>('/virtualOrders/customerService', {
     params
   });
   return response.data;
@@ -53,35 +53,35 @@ export const getVirtualCustomerServices = async (params?: VirtualCustomerService
 /**
  * 创建虚拟客服
  */
-export const createVirtualCustomerService = async (data: VirtualCustomerServiceCreate): Promise<VirtualCustomerServiceResponse> => {
-  const response = await request.post<ApiResponse<VirtualCustomerServiceResponse>>('/virtualOrders/customerService', data);
+export const createVirtualCustomerService = async (data: VirtualCustomerServiceCreate): Promise<any> => {
+  const response = await request.post<any>('/virtualOrders/customerService', data);
   return response.data;
 };
 
 /**
  * 更新虚拟客服信息
  */
-export const updateVirtualCustomerService = async (roleId: number, data: VirtualCustomerServiceUpdate): Promise<VirtualCustomerServiceUpdateResponse> => {
-  const response = await request.put<ApiResponse<VirtualCustomerServiceUpdateResponse>>(`/virtualOrders/customerService/${roleId}`, data);
+export const updateVirtualCustomerService = async (roleId: number, data: VirtualCustomerServiceUpdate): Promise<any> => {
+  const response = await request.put<any>(`/virtualOrders/customerService/${roleId}`, data);
   return response.data;
 };
 
 /**
  * 删除虚拟客服
  */
-export const deleteVirtualCustomerService = async (roleId: number): Promise<VirtualCustomerServiceDeleteResponse> => {
-  const response = await request.delete<ApiResponse<VirtualCustomerServiceDeleteResponse>>(`/virtualOrders/customerService/${roleId}`);
+export const deleteVirtualCustomerService = async (roleId: number): Promise<any> => {
+  const response = await request.delete<any>(`/virtualOrders/customerService/${roleId}`);
   return response.data;
 };
 
 /**
  * 导入专用客服
  */
-export const importCustomerService = async (file: File): Promise<CustomerServiceImportResponse> => {
+export const importCustomerService = async (file: File): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await request.post<ApiResponse<CustomerServiceImportResponse>>('/virtualOrders/import/customerService', formData, {
+  const response = await request.post<any>('/virtualOrders/import/customerService', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -94,8 +94,8 @@ export const importCustomerService = async (file: File): Promise<CustomerService
 /**
  * 获取学生收入汇总
  */
-export const getStudentIncomeSummary = async (params?: StudentIncomeSummaryParams): Promise<StudentIncomeSummaryResponse> => {
-  const response = await request.get<ApiResponse<StudentIncomeSummaryResponse>>('/virtualOrders/studentIncome/summary', {
+export const getStudentIncomeSummary = async (params?: StudentIncomeSummaryParams): Promise<any> => {
+  const response = await request.get<any>('/virtualOrders/studentIncome/summary', {
     params
   });
   return response.data;
@@ -104,16 +104,16 @@ export const getStudentIncomeSummary = async (params?: StudentIncomeSummaryParam
 /**
  * 重新分配学生任务
  */
-export const reallocateStudentTasks = async (studentId: number): Promise<ReallocateTasksResponse> => {
-  const response = await request.post<ApiResponse<ReallocateTasksResponse>>(`/virtualOrders/reallocate/${studentId}`);
+export const reallocateStudentTasks = async (studentId: number): Promise<any> => {
+  const response = await request.post<any>(`/virtualOrders/reallocate/${studentId}`);
   return response.data;
 };
 
 /**
  * 删除学生补贴池
  */
-export const deleteStudentPool = async (poolId: number): Promise<{ deleted: boolean; message: string }> => {
-  const response = await request.delete<ApiResponse<{ deleted: boolean; message: string }>>(`/virtualOrders/studentPools/${poolId}`);
+export const deleteStudentPool = async (poolId: number): Promise<any> => {
+  const response = await request.delete<any>(`/virtualOrders/studentPools/${poolId}`);
   return response.data;
 };
 
@@ -146,11 +146,11 @@ export const exportStudentIncome = async (params?: StudentIncomeSummaryParams & 
 /**
  * 导入学生补贴
  */
-export const importStudentSubsidy = async (file: File): Promise<StudentSubsidyImportResponse> => {
+export const importStudentSubsidy = async (file: File): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await request.post<ApiResponse<StudentSubsidyImportResponse>>('/virtualOrders/import/studentSubsidy', formData, {
+  const response = await request.post<any>('/virtualOrders/import/studentSubsidy', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -163,16 +163,16 @@ export const importStudentSubsidy = async (file: File): Promise<StudentSubsidyIm
 /**
  * 获取虚拟任务生成配置
  */
-export const getVirtualTaskGenerationConfig = async (): Promise<VirtualTaskGenerationConfig> => {
-  const response = await request.get<ApiResponse<VirtualTaskGenerationConfig>>('/virtualOrders/virtualTaskGenerationConfig');
+export const getVirtualTaskGenerationConfig = async (): Promise<any> => {
+  const response = await request.get<any>('/virtualOrders/virtualTaskGenerationConfig');
   return response.data;
 };
 
 /**
  * 更新虚拟任务生成配置
  */
-export const updateVirtualTaskGenerationConfig = async (params: UpdateVirtualTaskGenerationConfigParams): Promise<VirtualTaskGenerationConfig> => {
-  const response = await request.post<ApiResponse<VirtualTaskGenerationConfig>>('/virtualOrders/virtualTaskGenerationConfig', null, {
+export const updateVirtualTaskGenerationConfig = async (params: UpdateVirtualTaskGenerationConfigParams): Promise<any> => {
+  const response = await request.post<any>('/virtualOrders/virtualTaskGenerationConfig', null, {
     params
   });
   return response.data;

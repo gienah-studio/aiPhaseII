@@ -80,16 +80,30 @@ const CustomerService: React.FC = () => {
 
       const response = await getVirtualCustomerServices(queryParams);
 
+      // 验证响应数据结构
+      if (!response || !Array.isArray(response.items)) {
+        console.error('客服列表数据格式异常:', response);
+        message.error('客服列表数据格式异常');
+        setData([]);
+        setPagination(prev => ({
+          ...prev,
+          total: 0,
+          current: params?.page || pagination.current,
+          pageSize: params?.size || pagination.pageSize
+        }));
+        return;
+      }
+
       // 应用本地搜索过滤（因为API不支持搜索参数）
       let filteredData = response.items;
       if (searchParams.name) {
         filteredData = filteredData.filter(item =>
-          item.name.toLowerCase().includes(searchParams.name!.toLowerCase())
+          item.name && item.name.toLowerCase().includes(searchParams.name!.toLowerCase())
         );
       }
       if (searchParams.account) {
         filteredData = filteredData.filter(item =>
-          item.account.toLowerCase().includes(searchParams.account!.toLowerCase())
+          item.account && item.account.toLowerCase().includes(searchParams.account!.toLowerCase())
         );
       }
       if (searchParams.level) {
@@ -99,13 +113,21 @@ const CustomerService: React.FC = () => {
       setData(filteredData);
       setPagination(prev => ({
         ...prev,
-        total: response.total,
-        current: response.page,
-        pageSize: response.size
+        total: response.total || 0,
+        current: response.page || params?.page || pagination.current,
+        pageSize: response.size || params?.size || pagination.pageSize
       }));
     } catch (error) {
       message.error('获取客服列表失败');
       console.error('获取客服列表失败:', error);
+      // 设置空数据以避免界面错误
+      setData([]);
+      setPagination(prev => ({
+        ...prev,
+        total: 0,
+        current: params?.page || pagination.current,
+        pageSize: params?.size || pagination.pageSize
+      }));
     } finally {
       setLoading(false);
     }
@@ -215,7 +237,7 @@ const CustomerService: React.FC = () => {
               <p>失败详情：</p>
               <ul>
                 {result.failedDetails.map((detail, index) => (
-                  <li key={index}>{detail}</li>
+                  <li key={`failed-detail-${index}-${detail.substring(0, 10)}`}>{detail}</li>
                 ))}
               </ul>
             </div>
@@ -293,6 +315,7 @@ const CustomerService: React.FC = () => {
       render: (_: any, record: VirtualCustomerServiceInfo) => (
         <Space size="small">
           <Button
+            key="edit"
             type="link"
             size="small"
             icon={<EditOutlined />}
@@ -301,6 +324,7 @@ const CustomerService: React.FC = () => {
             编辑
           </Button>
           <Popconfirm
+            key="delete"
             title="确定要删除这个客服吗？"
             onConfirm={() => handleDelete(record)}
             okText="确定"
@@ -330,21 +354,23 @@ const CustomerService: React.FC = () => {
           <div className={styles.searchArea}>
             <Space wrap>
               <Input
+                key="search-name"
                 placeholder="搜索姓名"
                 value={searchParams.name}
                 onChange={(e) => setSearchParams(prev => ({ ...prev, name: e.target.value }))}
                 style={{ width: 150 }}
               />
               <Input
+                key="search-account"
                 placeholder="搜索账号"
                 value={searchParams.account}
                 onChange={(e) => setSearchParams(prev => ({ ...prev, account: e.target.value }))}
                 style={{ width: 150 }}
               />
-              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+              <Button key="search-btn" type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
                 搜索
               </Button>
-              <Button icon={<ReloadOutlined />} onClick={handleReset}>
+              <Button key="reset-btn" icon={<ReloadOutlined />} onClick={handleReset}>
                 重置
               </Button>
             </Space>
@@ -355,13 +381,13 @@ const CustomerService: React.FC = () => {
           {/* 操作区域 */}
           <div className={styles.actionArea}>
             <Space wrap>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
+              <Button key="add-btn" type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
                 新增客服
               </Button>
-              {/*<Button icon={<UploadOutlined />} onClick={() => setImportModalVisible(true)}>*/}
+              {/*<Button key="import-btn" icon={<UploadOutlined />} onClick={() => setImportModalVisible(true)}>*/}
               {/*  批量导入*/}
               {/*</Button>*/}
-              {/*<Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>*/}
+              {/*<Button key="download-btn" icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>*/}
               {/*  下载模板*/}
               {/*</Button>*/}
             </Space>
@@ -372,7 +398,7 @@ const CustomerService: React.FC = () => {
         <Table
           columns={columns}
           dataSource={data}
-          rowKey="roleId"
+          rowKey={(record) => record.roleId || record.id || record.account || Math.random().toString()}
           loading={loading}
           pagination={{
             current: pagination.current,

@@ -23,6 +23,9 @@ class VirtualOrderTaskScheduler:
         self.is_running = False
         # 设置执行间隔：每5分钟执行一次
         self.check_interval_minutes = 5
+        # 价值回收检查间隔（2.5分钟）
+        self.value_recycling_interval_minutes = 2.5
+        self.last_value_recycling_check_time = None
         # 记录上次执行每日任务的日期
         self.last_daily_task_date = None
         # 奖金池任务检查间隔（3小时）
@@ -32,43 +35,70 @@ class VirtualOrderTaskScheduler:
     async def start_scheduler(self):
         """启动定时任务调度器"""
         self.is_running = True
-        logger.info(f"虚拟订单定时任务调度器已启动，每{self.check_interval_minutes}分钟执行一次")
+        logger.info(f"虚拟订单定时任务调度器已启动")
+        logger.info(f"主任务循环：每{self.check_interval_minutes}分钟执行一次")
+        logger.info(f"价值回收任务：每{self.value_recycling_interval_minutes}分钟执行一次")
+
+        # 启动独立的价值回收任务
+        value_recycling_task = asyncio.create_task(self._value_recycling_loop())
+
+        try:
+            while self.is_running:
+                try:
+                    current_time = datetime.now()
+
+                    # 1. 检查是否需要执行每日任务（凌晨0点）
+                    if self.should_run_daily_task(current_time):
+                        await self.run_daily_bonus_pool_task()
+                        self.last_daily_task_date = date.today()
+
+                    # 2. 检查是否需要处理奖金池过期任务（每3小时）
+                    if self.should_run_bonus_pool_check(current_time):
+                        await self.check_expired_bonus_pool_tasks()
+                        self.last_bonus_pool_check_time = current_time
+
+                    # 3. 执行普通过期任务检查
+                    if self.is_running:
+                        await self.check_expired_tasks()
+
+                    # 4. 执行自动确认任务检查（每5分钟）
+                    if self.is_running:
+                        await self.check_auto_confirm_tasks()
+
+                    # 等待指定间隔时间
+                    wait_seconds = self.check_interval_minutes * 60
+                    logger.info(f"主任务下次执行时间: {(datetime.now() + timedelta(seconds=wait_seconds)).strftime('%Y-%m-%d %H:%M:%S')}, 等待 {wait_seconds} 秒")
+                    await asyncio.sleep(wait_seconds)
+
+                except Exception as e:
+                    logger.error(f"主任务循环执行出错: {str(e)}")
+                    # 出错后等待5分钟再重试
+                    await asyncio.sleep(300)
+        finally:
+            # 停止价值回收任务
+            value_recycling_task.cancel()
+            try:
+                await value_recycling_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _value_recycling_loop(self):
+        """独立的价值回收循环"""
+        logger.info(f"价值回收任务循环已启动，每{self.value_recycling_interval_minutes}分钟执行一次")
 
         while self.is_running:
             try:
-                current_time = datetime.now()
-                
-                # 1. 检查是否需要执行每日任务（凌晨0点）
-                if self.should_run_daily_task(current_time):
-                    await self.run_daily_bonus_pool_task()
-                    self.last_daily_task_date = date.today()
-                
-                # 2. 检查是否需要处理奖金池过期任务（每3小时）
-                if self.should_run_bonus_pool_check(current_time):
-                    await self.check_expired_bonus_pool_tasks()
-                    self.last_bonus_pool_check_time = current_time
-                
-                # 3. 执行普通过期任务检查
-                if self.is_running:
-                    await self.check_expired_tasks()
+                await self.check_value_recycling()
 
-                # 4. 执行价值回收任务检查（每5分钟）
-                if self.is_running:
-                    await self.check_value_recycling()
-
-                # 5. 执行自动确认任务检查（每5分钟）
-                if self.is_running:
-                    await self.check_auto_confirm_tasks()
-
-                # 等待指定间隔时间
-                wait_seconds = self.check_interval_minutes * 60
-                logger.info(f"下次执行时间: {(datetime.now() + timedelta(seconds=wait_seconds)).strftime('%Y-%m-%d %H:%M:%S')}, 等待 {wait_seconds} 秒")
+                # 等待2.5分钟
+                wait_seconds = self.value_recycling_interval_minutes * 60
+                logger.info(f"价值回收下次执行时间: {(datetime.now() + timedelta(seconds=wait_seconds)).strftime('%Y-%m-%d %H:%M:%S')}, 等待 {wait_seconds} 秒")
                 await asyncio.sleep(wait_seconds)
 
             except Exception as e:
-                logger.error(f"定时任务执行出错: {str(e)}")
-                # 出错后等待5分钟再重试
-                await asyncio.sleep(300)
+                logger.error(f"价值回收任务执行出错: {str(e)}")
+                # 出错后等待2.5分钟再重试
+                await asyncio.sleep(self.value_recycling_interval_minutes * 60)
     
     def stop_scheduler(self):
         """停止定时任务调度器"""
@@ -499,18 +529,16 @@ class VirtualOrderTaskScheduler:
                 await self.mark_value_recycled_only(db)
                 return
 
-            # 查找最近5分钟内完成且未回收价值的虚拟任务
-            five_minutes_ago = datetime.now() - timedelta(minutes=5)
-
+            # 查找所有未回收价值的已完成虚拟任务
+            # 移除时间限制，确保服务中断后重启时能处理所有积压的任务
             completed_tasks = db.query(Tasks).filter(
                 and_(
                     Tasks.is_virtual == True,
                     Tasks.status == '4',  # 已完成状态
                     Tasks.value_recycled == False,  # 未回收价值
-                    Tasks.updated_at >= five_minutes_ago,  # 最近5分钟内更新的
                     Tasks.target_student_id.isnot(None)  # 有目标学生的任务
                 )
-            ).all()
+            ).order_by(Tasks.updated_at.asc()).limit(50).all()  # 限制批次大小，按时间顺序处理
 
             if not completed_tasks:
                 logger.info("没有发现需要价值回收的已完成虚拟任务")
@@ -579,22 +607,20 @@ class VirtualOrderTaskScheduler:
                 logger.warning(f"未找到学生 {student_id} 的补贴池")
                 return
 
-            # 计算总可用金额：剩余补贴 + 回收价值
-            total_available = pool.remaining_amount + recycled_amount
+            # 价值回收：只根据回收价值生成任务，不使用剩余补贴
+            logger.info(f"学生 {pool.student_name} 价值回收: 回收金额 {recycled_amount}, 剩余补贴 {pool.remaining_amount}")
 
-            logger.info(f"学生 {pool.student_name} 价值回收: 回收金额 {recycled_amount}, 剩余补贴 {pool.remaining_amount}, 总可用 {total_available}")
-
-            # 如果总可用金额大于0，重新生成任务
-            if total_available > 0:
+            # 如果回收价值大于0，重新生成任务
+            if recycled_amount > 0:
                 # 优先使用新的虚拟客服分配策略
                 try:
                     result = service.generate_virtual_tasks_with_service_allocation(
-                        student_id, pool.student_name, total_available
+                        student_id, pool.student_name, recycled_amount
                     )
 
                     if result['success']:
                         # 更新补贴池：将回收价值加入剩余金额
-                        pool.remaining_amount = total_available
+                        pool.remaining_amount += recycled_amount
                         pool.updated_at = datetime.now()
 
                         logger.info(f"使用虚拟客服分配策略为学生 {pool.student_name} 重新生成了 {len(result['tasks'])} 个任务，总金额: {result['total_amount']}")
@@ -605,7 +631,7 @@ class VirtualOrderTaskScheduler:
                     # 如果新策略出错，回退到原有方式
                     logger.error(f"虚拟客服分配策略出错: {e}，回退到原有方式")
                     new_tasks = service.generate_virtual_tasks_for_student(
-                        student_id, pool.student_name, total_available
+                        student_id, pool.student_name, recycled_amount
                     )
 
                     # 保存新任务
@@ -613,7 +639,7 @@ class VirtualOrderTaskScheduler:
                         db.add(task)
 
                     # 更新补贴池：将回收价值加入剩余金额
-                    pool.remaining_amount = total_available
+                    pool.remaining_amount += recycled_amount
                     pool.updated_at = datetime.now()
 
                     new_tasks_total_amount = sum(task.commission for task in new_tasks)

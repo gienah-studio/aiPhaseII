@@ -82,16 +82,36 @@ const StudentModule: React.FC = () => {
       };
 
       const response = await getStudentPools(queryParams);
-      setPoolData(response.items);
-      setPagination(prev => ({
-        ...prev,
-        total: response.total,
-        current: response.page,
-        pageSize: response.size
-      }));
+
+      // 验证响应数据结构
+      if (response && typeof response === 'object' && Array.isArray(response.items)) {
+        setPoolData(response.items);
+        setPagination(prev => ({
+          ...prev,
+          total: response.total || 0,
+          current: response.page || queryParams.page,
+          pageSize: response.size || queryParams.size
+        }));
+      } else {
+        console.error('学生补贴池数据格式异常:', response);
+        message.error('学生补贴池数据格式异常');
+        setPoolData([]);
+        setPagination(prev => ({
+          ...prev,
+          total: 0,
+          current: queryParams.page,
+          pageSize: queryParams.size
+        }));
+      }
     } catch (error) {
       message.error('获取学生补贴池数据失败');
       console.error('获取学生补贴池数据失败:', error);
+      // 设置空数据以避免界面错误
+      setPoolData([]);
+      setPagination(prev => ({
+        ...prev,
+        total: 0
+      }));
     } finally {
       setPoolLoading(false);
     }
@@ -102,10 +122,19 @@ const StudentModule: React.FC = () => {
     try {
       setSummaryLoading(true);
       const response = await getStudentIncomeSummary({ ...summaryParams, ...params });
-      setSummaryData(response);
+
+      // 验证响应数据结构
+      if (response && typeof response === 'object') {
+        setSummaryData(response);
+      } else {
+        console.error('学生收入汇总数据格式异常:', response);
+        message.error('学生收入汇总数据格式异常');
+        setSummaryData(null);
+      }
     } catch (error) {
       message.error('获取学生收入汇总失败');
       console.error('获取学生收入汇总失败:', error);
+      setSummaryData(null);
     } finally {
       setSummaryLoading(false);
     }

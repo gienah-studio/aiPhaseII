@@ -51,10 +51,19 @@ const Home: React.FC = () => {
     try {
       setStatsLoading(true);
       const data = await getVirtualOrderStats();
-      setStatsData(data);
+
+      // 验证数据结构
+      if (data && typeof data === 'object') {
+        setStatsData(data);
+      } else {
+        console.error('统计数据格式异常:', data);
+        message.error('统计数据格式异常');
+        setStatsData(null);
+      }
     } catch (error) {
       message.error('获取统计数据失败');
       console.error('获取统计数据失败:', error);
+      setStatsData(null);
     } finally {
       setStatsLoading(false);
     }
@@ -65,15 +74,36 @@ const Home: React.FC = () => {
     try {
       setPoolsLoading(true);
       const data = await getStudentPools({ page, size });
-      setStudentPools(data.items);
-      setPoolsPagination({
-        current: data.page,
-        pageSize: data.size,
-        total: data.total
-      });
+
+      // 验证返回的数据结构
+      if (data && typeof data === 'object' && Array.isArray(data.items)) {
+        setStudentPools(data.items);
+        setPoolsPagination({
+          current: data.page || page,
+          pageSize: data.size || size,
+          total: data.total || 0
+        });
+      } else {
+        console.error('学生补贴池数据格式异常:', data);
+        message.error('学生补贴池数据格式异常');
+        // 设置空数据以避免界面错误
+        setStudentPools([]);
+        setPoolsPagination({
+          current: page,
+          pageSize: size,
+          total: 0
+        });
+      }
     } catch (error) {
       message.error('获取学生补贴池数据失败');
       console.error('获取学生补贴池数据失败:', error);
+      // 设置空数据以避免界面错误
+      setStudentPools([]);
+      setPoolsPagination({
+        current: page,
+        pageSize: size,
+        total: 0
+      });
     } finally {
       setPoolsLoading(false);
     }
@@ -84,10 +114,19 @@ const Home: React.FC = () => {
     try {
       setTaskGenerationLoading(true);
       const config = await getVirtualTaskGenerationConfig();
-      setTaskGenerationConfig(config);
+
+      // 验证配置数据
+      if (config && typeof config === 'object') {
+        setTaskGenerationConfig(config);
+      } else {
+        console.error('虚拟任务生成配置数据格式异常:', config);
+        message.error('虚拟任务生成配置数据格式异常');
+        setTaskGenerationConfig(null);
+      }
     } catch (error) {
       message.error('获取虚拟任务生成配置失败');
       console.error('获取虚拟任务生成配置失败:', error);
+      setTaskGenerationConfig(null);
     } finally {
       setTaskGenerationLoading(false);
     }
@@ -105,8 +144,16 @@ const Home: React.FC = () => {
         enabled: newEnabled
       });
 
-      setTaskGenerationConfig(updatedConfig);
-      message.success(`虚拟任务生成已${newEnabled ? '启用' : '暂停'}`);
+      // 验证更新后的配置数据
+      if (updatedConfig && typeof updatedConfig === 'object') {
+        setTaskGenerationConfig(updatedConfig);
+        message.success(`虚拟任务生成已${newEnabled ? '启用' : '暂停'}`);
+      } else {
+        console.error('更新后的配置数据格式异常:', updatedConfig);
+        message.error('更新配置成功，但返回数据格式异常');
+        // 重新获取配置以确保数据一致性
+        fetchTaskGenerationConfig();
+      }
     } catch (error) {
       message.error('更新虚拟任务生成配置失败');
       console.error('更新虚拟任务生成配置失败:', error);
