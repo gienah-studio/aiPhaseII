@@ -61,16 +61,16 @@ export const createVirtualCustomerService = async (data: VirtualCustomerServiceC
 /**
  * 更新虚拟客服信息
  */
-export const updateVirtualCustomerService = async (roleId: number, data: VirtualCustomerServiceUpdate): Promise<any> => {
-  const response = await request.put<any>(`/virtualOrders/customerService/${roleId}`, data);
+export const updateVirtualCustomerService = async (csId: number, data: VirtualCustomerServiceUpdate): Promise<any> => {
+  const response = await request.put<any>(`/virtualOrders/customerService/${csId}`, data);
   return response.data;
 };
 
 /**
  * 删除虚拟客服
  */
-export const deleteVirtualCustomerService = async (roleId: number): Promise<any> => {
-  const response = await request.delete<any>(`/virtualOrders/customerService/${roleId}`);
+export const deleteVirtualCustomerService = async (csId: number): Promise<any> => {
+  const response = await request.delete<any>(`/virtualOrders/customerService/${csId}`);
   return response.data;
 };
 

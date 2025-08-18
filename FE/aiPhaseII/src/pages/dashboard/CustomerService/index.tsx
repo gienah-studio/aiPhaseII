@@ -189,7 +189,7 @@ const CustomerService: React.FC = () => {
         const updateData: VirtualCustomerServiceUpdate = {
           name: values.name
         };
-        await updateVirtualCustomerService(editingRecord.roleId, updateData);
+        await updateVirtualCustomerService(editingRecord.id, updateData);
         message.success('更新客服信息成功');
       } else {
         // 创建
@@ -213,7 +213,7 @@ const CustomerService: React.FC = () => {
   // 删除客服
   const handleDelete = async (record: VirtualCustomerServiceInfo) => {
     try {
-      await deleteVirtualCustomerService(record.roleId);
+      await deleteVirtualCustomerService(record.id);
       message.success('删除客服成功');
       fetchData();
     } catch (error) {
@@ -295,15 +295,15 @@ const CustomerService: React.FC = () => {
     },
     {
       title: '最后登录',
-      dataIndex: 'lastLoginTime',
-      key: 'lastLoginTime',
+      dataIndex: 'last_login_time',
+      key: 'last_login_time',
       width: 180,
       render: (time: string) => time ? new Date(time).toLocaleString() : '从未登录',
     },
     {
       title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
+      dataIndex: 'created_at',
+      key: 'created_at',
       width: 180,
       render: (time: string) => time ? new Date(time).toLocaleString() : '-',
     },
@@ -398,7 +398,7 @@ const CustomerService: React.FC = () => {
         <Table
           columns={columns}
           dataSource={data}
-          rowKey={(record) => record.roleId || record.id || record.account || Math.random().toString()}
+          rowKey={(record) => record.id || record.account || Math.random().toString()}
           loading={loading}
           pagination={{
             current: pagination.current,

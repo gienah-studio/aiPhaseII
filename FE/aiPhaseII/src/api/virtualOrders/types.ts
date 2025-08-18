@@ -64,15 +64,14 @@ export interface StudentPoolParams {
  * 虚拟客服信息
  */
 export interface VirtualCustomerServiceInfo {
-  roleId: number;
-  userId?: number;
+  id: number;
+  user_id?: number;
   name: string;
   account: string;
   level: string;
-  phoneNumber?: string;
-  idCard?: string;
-  lastLoginTime?: string;
-  createdAt?: string;
+  status: string;
+  last_login_time?: string;
+  created_at?: string;
 }
 
 /**
@@ -116,29 +115,31 @@ export interface VirtualCustomerServiceUpdate {
  * 虚拟客服响应
  */
 export interface VirtualCustomerServiceResponse {
-  userId: number;
-  roleId: number;
+  id: number;
+  user_id: number;
   name: string;
   account: string;
   level: string;
-  initialPassword?: string;
+  status: string;
+  initial_password?: string;
 }
 
 /**
  * 更新虚拟客服响应
  */
 export interface VirtualCustomerServiceUpdateResponse {
-  roleId: number;
+  id: number;
   name: string;
   account: string;
-  updatedFields: string[];
+  status: string;
+  updated_fields: string[];
 }
 
 /**
  * 删除虚拟客服响应
  */
 export interface VirtualCustomerServiceDeleteResponse {
-  roleId: number;
+  id: number;
   name: string;
   account: string;
   deleted: boolean;
