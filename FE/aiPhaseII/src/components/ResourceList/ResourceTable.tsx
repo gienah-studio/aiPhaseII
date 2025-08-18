@@ -40,6 +40,16 @@ interface ResourceTableProps {
   onSelectionChange: (selectedRowKeys: string[]) => void;
   onView: (record: ResourceItem) => void;
   onDelete: (record: ResourceItem) => void;
+  pagination?: {
+    current: number;
+    pageSize: number;
+    total: number;
+    showSizeChanger?: boolean;
+    showQuickJumper?: boolean;
+    showTotal?: (total: number, range: [number, number]) => string;
+    pageSizeOptions?: string[];
+  };
+  onTableChange?: (page: number, pageSize?: number) => void;
 }
 
 const ResourceTable: React.FC<ResourceTableProps> = ({
@@ -48,7 +58,9 @@ const ResourceTable: React.FC<ResourceTableProps> = ({
   selectedRowKeys,
   onSelectionChange,
   onView,
-  onDelete
+  onDelete,
+  pagination,
+  onTableChange
 }) => {
   const getStatusConfig = (status: ResourceItem['status']) => {
     const configs = {
@@ -204,7 +216,11 @@ const ResourceTable: React.FC<ResourceTableProps> = ({
       loading={loading}
       rowSelection={rowSelection}
       scroll={{ x: 1400, y: 600 }}
-      pagination={{
+      pagination={pagination ? {
+        ...pagination,
+        onChange: onTableChange,
+        onShowSizeChange: onTableChange
+      } : {
         showSizeChanger: true,
         showQuickJumper: true,
         showTotal: (total, range) =>

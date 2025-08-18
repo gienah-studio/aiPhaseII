@@ -23,7 +23,7 @@ class ImageProcessor:
     }
     
     # 文件大小限制（字节）
-    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
     MAX_ZIP_SIZE = 200 * 1024 * 1024  # 200MB
     
     # 图片尺寸限制

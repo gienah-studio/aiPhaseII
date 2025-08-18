@@ -14,7 +14,9 @@ import type {
   StudentIncomeSummaryParams,
   ReallocateTasksResponse,
   CustomerServiceImportResponse,
-  StudentSubsidyImportResponse
+  StudentSubsidyImportResponse,
+  VirtualTaskGenerationConfig,
+  UpdateVirtualTaskGenerationConfigParams
 } from './types';
 import type { ApiResponse } from '../common/types';
 
@@ -152,6 +154,26 @@ export const importStudentSubsidy = async (file: File): Promise<StudentSubsidyIm
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+  });
+  return response.data;
+};
+
+// ==================== 虚拟任务生成配置相关API ====================
+
+/**
+ * 获取虚拟任务生成配置
+ */
+export const getVirtualTaskGenerationConfig = async (): Promise<VirtualTaskGenerationConfig> => {
+  const response = await request.get<ApiResponse<VirtualTaskGenerationConfig>>('/virtualOrders/virtualTaskGenerationConfig');
+  return response.data;
+};
+
+/**
+ * 更新虚拟任务生成配置
+ */
+export const updateVirtualTaskGenerationConfig = async (params: UpdateVirtualTaskGenerationConfigParams): Promise<VirtualTaskGenerationConfig> => {
+  const response = await request.post<ApiResponse<VirtualTaskGenerationConfig>>('/virtualOrders/virtualTaskGenerationConfig', null, {
+    params
   });
   return response.data;
 };

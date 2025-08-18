@@ -81,21 +81,25 @@ class VirtualOrderTaskScheduler:
         return datetime.now() + timedelta(minutes=self.check_interval_minutes)
     
     async def check_expired_tasks(self):
-        """检查并处理过期的虚拟任务"""
+        """检查并处理过期的虚拟任务（每5分钟执行）"""
         db = SessionLocal()
         try:
-            logger.info("开始检查过期的虚拟任务...")
+            logger.info("开始执行定时过期任务检查（5分钟周期）...")
 
-            # 查找接单截止时间已过的虚拟任务，排除状态为1、2、4的任务
+            # 检查虚拟任务生成是否启用
+            from .config_service import ConfigService
+            config_service = ConfigService(db)
+            generation_config = config_service.get_virtual_task_generation_config()
+
+            if not generation_config['enabled'] or not generation_config['expired_task_regeneration_enabled']:
+                logger.info("虚拟任务生成或过期任务重新生成已禁用，跳过过期任务重新生成")
+                # 仍然需要处理过期任务的状态更新，但不重新生成
+                await self.mark_expired_tasks_only(db)
+                return
+
+            # 使用新的方法获取所有过期任务（包括状态2的特殊处理）
             current_time = datetime.now()
-
-            expired_tasks = db.query(Tasks).filter(
-                and_(
-                    Tasks.is_virtual == True,
-                    Tasks.status.notin_(['1', '2', '3', '4']),  # 排除状态为1、2、3、4的任务
-                    Tasks.end_date <= current_time  # 接单截止时间已过
-                )
-            ).all()
+            expired_tasks = self._get_all_expired_virtual_tasks(db, current_time)
 
             if not expired_tasks:
                 logger.info("没有发现需要处理的过期虚拟任务")
@@ -256,12 +260,152 @@ class VirtualOrderTaskScheduler:
         if time_diff.total_seconds() >= self.bonus_pool_check_interval_hours * 3600:
             return True
         return False
-    
+
+    def _check_status_2_task_expired(self, db: Session, task: Tasks) -> bool:
+        """
+        检查状态为2的任务是否真的过期（保守策略）
+
+        Args:
+            db: 数据库会话
+            task: 任务对象
+
+        Returns:
+            bool: 是否过期（只有没有提交记录且已过交稿时间才返回True）
+        """
+        # 检查交稿时间是否已过
+        if not task.delivery_date or task.delivery_date > datetime.now():
+            return False
+
+        # 检查是否有提交记录
+        from shared.models.studenttask import StudentTask
+        submission = db.query(StudentTask).filter(
+            StudentTask.task_id == task.id,
+            StudentTask.content.isnot(None)
+        ).first()
+
+        if submission:
+            # 有提交记录，记录日志但不删除，让自动确认机制处理
+            from .config_service import ConfigService
+            config_service = ConfigService(db)
+            auto_confirm_config = config_service.get_auto_confirm_config()
+
+            logger.warning(f"发现状态为2但有提交记录的任务: task_id={task.id}, "
+                          f"submission_time={submission.creation_time}, "
+                          f"delivery_date={task.delivery_date}, "
+                          f"auto_confirm_enabled={auto_confirm_config['enabled']}, "
+                          f"建议检查自动确认机制")
+            return False
+        else:
+            # 没有提交记录且已过交稿时间，视为过期
+            logger.info(f"状态为2的过期任务（无提交记录）: task_id={task.id}, "
+                       f"delivery_date={task.delivery_date}")
+            return True
+
+    def _get_all_expired_virtual_tasks(self, db: Session, current_time: datetime) -> List[Tasks]:
+        """
+        获取所有过期的虚拟任务，包括状态为2但实际过期的任务
+
+        Args:
+            db: 数据库会话
+            current_time: 当前时间
+
+        Returns:
+            List[Tasks]: 过期任务列表
+        """
+        # 1. 常规过期任务（排除状态为1、2、3、4的任务）
+        regular_expired = db.query(Tasks).filter(
+            and_(
+                Tasks.is_virtual == True,
+                Tasks.status.notin_(['1', '2', '3', '4']),
+                Tasks.end_date <= current_time
+            )
+        ).all()
+
+        # 2. 状态为2的可能过期任务（使用交稿时间判断）
+        status_2_candidates = db.query(Tasks).filter(
+            and_(
+                Tasks.is_virtual == True,
+                Tasks.status == '2',
+                Tasks.delivery_date <= current_time
+            )
+        ).all()
+
+        # 3. 验证状态为2的任务（保守策略：只删除无提交记录的）
+        verified_status_2_expired = [
+            task for task in status_2_candidates
+            if self._check_status_2_task_expired(db, task)
+        ]
+
+        logger.info(f"过期任务统计: 常规过期={len(regular_expired)}, "
+                   f"状态2候选={len(status_2_candidates)}, "
+                   f"状态2确认过期={len(verified_status_2_expired)}")
+
+        return regular_expired + verified_status_2_expired
+
+    async def mark_expired_tasks_only(self, db: Session):
+        """仅标记过期任务状态，不重新生成任务"""
+        try:
+            current_time = datetime.now()
+            # 使用新的方法获取所有过期任务
+            expired_tasks = self._get_all_expired_virtual_tasks(db, current_time)
+
+            if expired_tasks:
+                for task in expired_tasks:
+                    task.status = '5'  # 标记为过期状态
+                    task.updated_at = current_time
+
+                db.commit()
+                logger.info(f"已标记 {len(expired_tasks)} 个过期虚拟任务为过期状态")
+            else:
+                logger.info("没有发现需要标记的过期虚拟任务")
+
+        except Exception as e:
+            logger.error(f"标记过期任务失败: {str(e)}")
+            db.rollback()
+
+    async def mark_value_recycled_only(self, db: Session):
+        """仅标记已完成任务为已回收，不重新生成任务"""
+        try:
+            five_minutes_ago = datetime.now() - timedelta(minutes=5)
+            completed_tasks = db.query(Tasks).filter(
+                and_(
+                    Tasks.is_virtual == True,
+                    Tasks.status == '4',  # 已完成状态
+                    Tasks.value_recycled == False,  # 未回收价值
+                    Tasks.updated_at >= five_minutes_ago,  # 最近5分钟内更新的
+                    Tasks.target_student_id.isnot(None)  # 有目标学生的任务
+                )
+            ).all()
+
+            if completed_tasks:
+                for task in completed_tasks:
+                    task.value_recycled = True
+                    task.updated_at = datetime.now()
+
+                db.commit()
+                logger.info(f"已标记 {len(completed_tasks)} 个已完成虚拟任务为已回收状态")
+            else:
+                logger.info("没有发现需要标记的已完成虚拟任务")
+
+        except Exception as e:
+            logger.error(f"标记价值回收失败: {str(e)}")
+            db.rollback()
+
     async def run_daily_bonus_pool_task(self):
         """执行每日奖金池任务"""
         db = SessionLocal()
         try:
             logger.info("开始执行每日奖金池任务...")
+
+            # 检查虚拟任务生成是否启用
+            from .config_service import ConfigService
+            config_service = ConfigService(db)
+            generation_config = config_service.get_virtual_task_generation_config()
+
+            if not generation_config['enabled'] or not generation_config['daily_bonus_enabled']:
+                logger.info("虚拟任务生成或每日奖金池任务已禁用，跳过每日奖金池任务")
+                return
+
             bonus_service = BonusPoolService(db)
             
             # 0. 重置所有学生的当日完成金额（新的一天开始）
@@ -303,8 +447,18 @@ class VirtualOrderTaskScheduler:
         db = SessionLocal()
         try:
             logger.info("开始检查过期的奖金池任务...")
+
+            # 检查虚拟任务生成是否启用
+            from .config_service import ConfigService
+            config_service = ConfigService(db)
+            generation_config = config_service.get_virtual_task_generation_config()
+
+            if not generation_config['enabled'] or not generation_config['bonus_pool_task_enabled']:
+                logger.info("虚拟任务生成或奖金池任务已禁用，跳过奖金池过期任务处理")
+                return
+
             bonus_service = BonusPoolService(db)
-            
+
             # 处理过期的奖金池任务
             result = bonus_service.process_expired_bonus_tasks()
             logger.info(f"过期奖金池任务处理结果: {result}")
@@ -333,6 +487,17 @@ class VirtualOrderTaskScheduler:
         db = SessionLocal()
         try:
             logger.info("开始检查需要价值回收的已完成虚拟任务...")
+
+            # 检查虚拟任务生成是否启用
+            from .config_service import ConfigService
+            config_service = ConfigService(db)
+            generation_config = config_service.get_virtual_task_generation_config()
+
+            if not generation_config['enabled'] or not generation_config['value_recycling_enabled']:
+                logger.info("虚拟任务生成或价值回收任务生成已禁用，跳过价值回收任务生成")
+                # 仍然需要标记任务为已回收，但不重新生成任务
+                await self.mark_value_recycled_only(db)
+                return
 
             # 查找最近5分钟内完成且未回收价值的虚拟任务
             five_minutes_ago = datetime.now() - timedelta(minutes=5)
@@ -465,10 +630,10 @@ class VirtualOrderTaskScheduler:
         self.last_bonus_pool_check_time = datetime.now()
 
     async def check_auto_confirm_tasks(self):
-        """检查并自动确认提交超过配置时间的虚拟任务"""
+        """检查并自动确认提交超过配置时间的虚拟任务（每5分钟执行）"""
         db = SessionLocal()
         try:
-            logger.info("开始检查需要自动确认的虚拟任务...")
+            logger.info("开始执行定时自动确认检查（5分钟周期）...")
 
             # 导入相关模型和服务
             from shared.models.studenttask import StudentTask
@@ -498,7 +663,7 @@ class VirtualOrderTaskScheduler:
 
             # 查找提交超过配置时间且对应虚拟任务未完成的记录
             # 注意：使用creation_time字段，需要转换为datetime进行比较
-            from sqlalchemy import func, cast, DateTime
+            from sqlalchemy import func
 
             pending_submissions = db.query(StudentTask).join(
                 Tasks, StudentTask.task_id == Tasks.id

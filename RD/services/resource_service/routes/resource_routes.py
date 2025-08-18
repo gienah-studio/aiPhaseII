@@ -99,14 +99,19 @@ async def upload_resources(
     支持的图片格式：jpg, jpeg, png, gif, bmp, webp, tiff
     """
     try:
+        # 记录接收到的文件名（用于问题排查）
+        for i, file in enumerate(files):
+            if file.filename:
+                logger.debug(f"接收文件 {i+1}: {file.filename}")
+
         # 验证上传文件数量
         if len(files) > 50:
             raise HTTPException(status_code=400, detail="单次最多上传50个文件")
-        
+
         # 验证文件大小
         for file in files:
-            if file.size and file.size > 50 * 1024 * 1024:  # 50MB
-                raise HTTPException(status_code=400, detail=f"文件 {file.filename} 过大，单个文件最大50MB")
+            if file.size and file.size > 100 * 1024 * 1024:  # 100MB
+                raise HTTPException(status_code=400, detail=f"文件 {file.filename} 过大，单个文件最大100MB")
         
         # 获取用户信息
         uploader_id = current_user.id

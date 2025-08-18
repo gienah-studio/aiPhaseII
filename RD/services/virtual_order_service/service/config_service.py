@@ -36,7 +36,12 @@ class ConfigService:
                 return float(config.config_value)
             elif config.config_type == 'json':
                 return json.loads(config.config_value)
+            elif config.config_type == 'boolean':
+                return config.config_value.lower() in ('true', '1', 'yes', 'on')
             else:
+                # 对于字符串类型，如果值看起来像布尔值，则转换为布尔值
+                if config.config_value.lower() in ('true', 'false'):
+                    return config.config_value.lower() == 'true'
                 return config.config_value
                 
         except Exception as e:
@@ -66,6 +71,8 @@ class ConfigService:
             # 转换值为字符串
             if config_type == 'json':
                 config_value = json.dumps(value, ensure_ascii=False)
+            elif config_type == 'boolean':
+                config_value = str(bool(value)).lower()
             else:
                 config_value = str(value)
             
@@ -96,7 +103,7 @@ class ConfigService:
     def get_auto_confirm_config(self) -> dict:
         """
         获取自动确认相关配置
-        
+
         Returns:
             自动确认配置字典
         """
@@ -104,6 +111,21 @@ class ConfigService:
             'enabled': self.get_config('auto_confirm_enabled', True),
             'interval_hours': self.get_config('auto_confirm_interval_hours', 1.0),
             'max_batch_size': self.get_config('auto_confirm_max_batch_size', 100)
+        }
+
+    def get_virtual_task_generation_config(self) -> dict:
+        """
+        获取虚拟任务生成相关配置
+
+        Returns:
+            虚拟任务生成配置字典
+        """
+        return {
+            'enabled': self.get_config('virtual_task_generation_enabled', True),
+            'daily_bonus_enabled': self.get_config('virtual_task_daily_bonus_enabled', True),
+            'expired_task_regeneration_enabled': self.get_config('virtual_task_expired_regeneration_enabled', True),
+            'value_recycling_enabled': self.get_config('virtual_task_value_recycling_enabled', True),
+            'bonus_pool_task_enabled': self.get_config('virtual_task_bonus_pool_enabled', True)
         }
     
     def init_auto_confirm_config(self):
@@ -132,6 +154,50 @@ class ConfigService:
             )
             
             logger.info("自动确认配置初始化完成")
-            
+
         except Exception as e:
             logger.error(f"初始化自动确认配置失败: {str(e)}")
+
+    def init_virtual_task_generation_config(self):
+        """初始化虚拟任务生成配置"""
+        try:
+            # 设置默认配置
+            self.set_config(
+                'virtual_task_generation_enabled',
+                True,
+                'boolean',
+                '是否启用虚拟任务生成功能（总开关）'
+            )
+
+            self.set_config(
+                'virtual_task_daily_bonus_enabled',
+                True,
+                'boolean',
+                '是否启用每日奖金池任务生成'
+            )
+
+            self.set_config(
+                'virtual_task_expired_regeneration_enabled',
+                True,
+                'boolean',
+                '是否启用过期任务重新生成'
+            )
+
+            self.set_config(
+                'virtual_task_value_recycling_enabled',
+                True,
+                'boolean',
+                '是否启用价值回收任务生成'
+            )
+
+            self.set_config(
+                'virtual_task_bonus_pool_enabled',
+                True,
+                'boolean',
+                '是否启用奖金池任务生成'
+            )
+
+            logger.info("虚拟任务生成配置初始化完成")
+
+        except Exception as e:
+            logger.error(f"初始化虚拟任务生成配置失败: {str(e)}")

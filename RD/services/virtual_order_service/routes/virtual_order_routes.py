@@ -563,6 +563,69 @@ async def update_auto_confirm_config(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新自动确认配置失败: {str(e)}")
 
+@router.get(
+    "/virtualTaskGenerationConfig",
+    response_model=ResponseSchema[dict],
+    summary="获取虚拟任务生成配置",
+    description="获取虚拟任务生成的相关配置"
+)
+async def get_virtual_task_generation_config(db: Session = Depends(get_db)):
+    """获取虚拟任务生成配置"""
+    try:
+        from ..service.config_service import ConfigService
+        config_service = ConfigService(db)
+        config = config_service.get_virtual_task_generation_config()
+
+        return ResponseSchema[dict](
+            code=200,
+            message="获取配置成功",
+            data=config
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取虚拟任务生成配置失败: {str(e)}")
+
+@router.post(
+    "/virtualTaskGenerationConfig",
+    response_model=ResponseSchema[dict],
+    summary="更新虚拟任务生成配置",
+    description="更新虚拟任务生成的相关配置"
+)
+async def update_virtual_task_generation_config(
+    enabled: bool = Query(True, description="是否启用虚拟任务生成（总开关）"),
+    daily_bonus_enabled: bool = Query(True, description="是否启用每日奖金池任务生成"),
+    expired_task_regeneration_enabled: bool = Query(True, description="是否启用过期任务重新生成"),
+    value_recycling_enabled: bool = Query(True, description="是否启用价值回收任务生成"),
+    bonus_pool_task_enabled: bool = Query(True, description="是否启用奖金池任务生成"),
+    db: Session = Depends(get_db)
+):
+    """更新虚拟任务生成配置"""
+    try:
+        from ..service.config_service import ConfigService
+        config_service = ConfigService(db)
+
+        # 更新配置
+        config_service.set_config('virtual_task_generation_enabled', enabled, 'boolean', '是否启用虚拟任务生成功能（总开关）')
+        config_service.set_config('virtual_task_daily_bonus_enabled', daily_bonus_enabled, 'boolean', '是否启用每日奖金池任务生成')
+        config_service.set_config('virtual_task_expired_regeneration_enabled', expired_task_regeneration_enabled, 'boolean', '是否启用过期任务重新生成')
+        config_service.set_config('virtual_task_value_recycling_enabled', value_recycling_enabled, 'boolean', '是否启用价值回收任务生成')
+        config_service.set_config('virtual_task_bonus_pool_enabled', bonus_pool_task_enabled, 'boolean', '是否启用奖金池任务生成')
+
+        return ResponseSchema[dict](
+            code=200,
+            message="配置更新成功",
+            data={
+                "enabled": enabled,
+                "daily_bonus_enabled": daily_bonus_enabled,
+                "expired_task_regeneration_enabled": expired_task_regeneration_enabled,
+                "value_recycling_enabled": value_recycling_enabled,
+                "bonus_pool_task_enabled": bonus_pool_task_enabled
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新虚拟任务生成配置失败: {str(e)}")
+
 @router.post(
     "/resetStudentPool/{student_id}",
     response_model=ResponseSchema[dict],

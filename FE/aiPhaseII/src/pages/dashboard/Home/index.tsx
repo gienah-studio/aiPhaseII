@@ -6,7 +6,8 @@ import {
   Row,
   Col,
   message,
-  Spin
+  Spin,
+  Button
 } from 'antd';
 import { useAuth } from '../../../hooks';
 import {
@@ -17,8 +18,11 @@ import {
 import {
   getVirtualOrderStats,
   getStudentPools,
+  getVirtualTaskGenerationConfig,
+  updateVirtualTaskGenerationConfig,
   type VirtualOrderStats,
-  type StudentPoolItem
+  type StudentPoolItem,
+  type VirtualTaskGenerationConfig
 } from '../../../api';
 import styles from './index.module.css';
 
@@ -37,6 +41,10 @@ const Home: React.FC = () => {
     pageSize: 10,
     total: 0
   });
+
+  // 虚拟任务生成配置状态
+  const [taskGenerationConfig, setTaskGenerationConfig] = useState<VirtualTaskGenerationConfig | null>(null);
+  const [taskGenerationLoading, setTaskGenerationLoading] = useState(false);
 
   // 获取虚拟订单统计数据
   const fetchStatsData = async () => {
@@ -71,6 +79,42 @@ const Home: React.FC = () => {
     }
   };
 
+  // 获取虚拟任务生成配置
+  const fetchTaskGenerationConfig = async () => {
+    try {
+      setTaskGenerationLoading(true);
+      const config = await getVirtualTaskGenerationConfig();
+      setTaskGenerationConfig(config);
+    } catch (error) {
+      message.error('获取虚拟任务生成配置失败');
+      console.error('获取虚拟任务生成配置失败:', error);
+    } finally {
+      setTaskGenerationLoading(false);
+    }
+  };
+
+  // 切换虚拟任务生成状态
+  const toggleTaskGeneration = async () => {
+    if (!taskGenerationConfig) return;
+
+    try {
+      setTaskGenerationLoading(true);
+      const newEnabled = !taskGenerationConfig.enabled;
+
+      const updatedConfig = await updateVirtualTaskGenerationConfig({
+        enabled: newEnabled
+      });
+
+      setTaskGenerationConfig(updatedConfig);
+      message.success(`虚拟任务生成已${newEnabled ? '启用' : '暂停'}`);
+    } catch (error) {
+      message.error('更新虚拟任务生成配置失败');
+      console.error('更新虚拟任务生成配置失败:', error);
+    } finally {
+      setTaskGenerationLoading(false);
+    }
+  };
+
   // 处理分页变化
   const handlePageChange = (page: number, size?: number) => {
     fetchStudentPools(page, size || poolsPagination.pageSize);
@@ -81,6 +125,7 @@ const Home: React.FC = () => {
     if (user) {
       fetchStatsData();
       fetchStudentPools();
+      fetchTaskGenerationConfig();
     }
   }, [user]);
 
@@ -99,7 +144,7 @@ const Home: React.FC = () => {
       {/* 欢迎卡片 */}
       <Card className={styles.welcomeCard}>
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} lg={18}>
+          <Col xs={24} lg={12}>
             <Space direction="vertical" size="small">
               <Text className={styles.title}>
                 虚拟订单管理系统
@@ -111,6 +156,23 @@ const Home: React.FC = () => {
                 登录时间：{new Date().toLocaleString()}
               </Text>
             </Space>
+          </Col>
+          <Col xs={24} lg={6}>
+            <div className={styles.taskGenerationControl}>
+              <Button
+                className={`${styles.taskGenerationButton} ${
+                  taskGenerationConfig?.enabled ? styles.enabled : styles.disabled
+                }`}
+                loading={taskGenerationLoading}
+                onClick={toggleTaskGeneration}
+                disabled={!taskGenerationConfig}
+              >
+                {taskGenerationConfig?.enabled ? '暂停生成' : '启用生成'}
+              </Button>
+              <Text className={styles.taskGenerationStatus}>
+                虚拟任务生成：{taskGenerationConfig?.enabled ? '运行中' : '已暂停'}
+              </Text>
+            </div>
           </Col>
           <Col xs={24} lg={6} style={{ textAlign: 'center' }}>
             <div className={styles.avatar}>

@@ -54,6 +54,48 @@
   box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
 }
 
+/* 虚拟任务生成控制按钮样式 */
+.taskGenerationControl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.taskGenerationButton {
+  min-width: 120px;
+  height: 40px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.taskGenerationButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.taskGenerationButton.enabled {
+  background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+  border-color: #52c41a;
+  color: white;
+}
+
+.taskGenerationButton.disabled {
+  background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
+  border-color: #ff4d4f;
+  color: white;
+}
+
+.taskGenerationStatus {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  margin: 0;
+}
+
 /* 图表区域样式 */
 .chartSection {
   margin-bottom: 20px;
@@ -107,6 +149,16 @@
   .tableSection {
     margin-bottom: 16px;
   }
+
+  .taskGenerationButton {
+    min-width: 100px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .taskGenerationStatus {
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 576px) {
@@ -117,5 +169,15 @@
   .avatarImg {
     width: 48px;
     height: 48px;
+  }
+
+  .taskGenerationButton {
+    min-width: 90px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .taskGenerationStatus {
+    font-size: 10px;
   }
 }

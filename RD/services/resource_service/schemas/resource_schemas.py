@@ -209,6 +209,8 @@ class AvailableImageResponse(BaseModel):
     file_url: Optional[str] = None
     image_code: Optional[str] = None
     category_code: Optional[str] = None
+    original_filename: Optional[str] = None
+    used_at: Optional[datetime] = None
     message: Optional[str] = None
 
 # ===== 通用响应模型 =====

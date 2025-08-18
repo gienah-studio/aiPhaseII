@@ -198,3 +198,27 @@ export interface StudentSubsidyImportResponse {
   totalSubsidy: number;
   generatedTasks: number;
 }
+
+// ==================== 虚拟任务生成配置相关类型 ====================
+
+/**
+ * 虚拟任务生成配置
+ */
+export interface VirtualTaskGenerationConfig {
+  enabled: boolean;
+  daily_bonus_enabled: boolean;
+  expired_task_regeneration_enabled: boolean;
+  value_recycling_enabled: boolean;
+  bonus_pool_task_enabled: boolean;
+}
+
+/**
+ * 更新虚拟任务生成配置请求参数
+ */
+export interface UpdateVirtualTaskGenerationConfigParams {
+  enabled?: boolean;
+  daily_bonus_enabled?: boolean;
+  expired_task_regeneration_enabled?: boolean;
+  value_recycling_enabled?: boolean;
+  bonus_pool_task_enabled?: boolean;
+}

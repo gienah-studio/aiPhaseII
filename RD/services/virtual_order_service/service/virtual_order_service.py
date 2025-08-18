@@ -93,17 +93,15 @@ class VirtualOrderService:
             with open(titles_file, 'r', encoding='utf-8') as f:
                 self.task_titles_data = json.load(f)
 
-            # 加载背景配置
+            # 加载背景配置（使用新版分类配置）
             backgrounds_file = os.path.join(config_dir, 'task_backgrounds.json')
             with open(backgrounds_file, 'r', encoding='utf-8') as f:
-                backgrounds_data = json.load(f)
-                self.task_backgrounds = backgrounds_data['backgrounds']
+                self.task_backgrounds_data = json.load(f)
 
-            # 加载风格配置
+            # 加载风格配置（使用新版分类配置）
             styles_file = os.path.join(config_dir, 'task_styles.json')
             with open(styles_file, 'r', encoding='utf-8') as f:
-                styles_data = json.load(f)
-                self.task_styles = styles_data['styles']
+                self.task_styles_data = json.load(f)
 
             # 加载分层模板配置
             templates_file = os.path.join(config_dir, 'task_templates.json')
@@ -262,28 +260,41 @@ class VirtualOrderService:
         # 基础描述模板
         base_templates = {
             'avatar_redesign': [
-                '创作{style}风格的人物头像，表现{mood}的情感，采用{technique}技法，{color}为主色调',
-                '设计{character}形象的头像，体现{mood}的特质，运用{style}表现手法，突出{color}的视觉效果',
-                '绘制{mood}神情的人物肖像，使用{style}艺术风格，{technique}处理，以{color}为主要色彩'
+                '头像改版：将人物头像转换为{style}风格，保持面部特征和辨识度，使用{technique}处理细节，采用{color}色彩方案，确保风格转换自然流畅',
+                '头像改版：制作{style}风格头像，保留原有人物特征，通过{technique}优化画面效果，运用{color}统一色调，避免五官变形或风格突兀',
+                '头像改版：转换头像为{style}风格，维持人物辨识度和基本特征，采用{technique}技术处理，使用{color}配色，确保转换效果协调'
             ],
             'room_decoration': [
-                '设计{style}风格的室内空间，营造{mood}的氛围，采用{technique}设计理念，以{color}为主色调',
-                '打造{mood}感的居住环境，运用{style}装修风格，体现{technique}设计特色，突出{color}的搭配',
-                '创建{style}风格的房间装饰，表达{mood}的生活态度，融入{technique}设计元素，{color}为主要配色'
+                '装修风格：设计{style}风格室内空间，重点处理{technique}，使用{color}作为主色调，确保空间功能合理，整体效果统一',
+                '装修风格：制作{style}风格装修方案，着重{technique}设计，采用{color}配色方案，注重实用性和美观性的平衡',
+                '装修风格：规划{style}风格室内设计，优化{technique}布局，运用{color}色彩搭配，满足居住需求和审美要求'
             ],
             'photo_extension': [
-                '扩展图像边界，补全{style}风格的场景，保持{mood}的画面氛围，运用{technique}处理技巧，延续{color}的色彩基调',
-                '延伸画面构图，展现完整的{style}环境，维持{mood}的视觉效果，采用{technique}扩展方法，协调{color}的整体色调',
-                '补充图像周边内容，创造{style}风格的完整场景，突出{mood}的表现力，使用{technique}扩图技术，统一{color}的色彩表现'
+                '照片扩图：扩展图片边界，补全背景内容，保持原有{style}风格和{color}色彩连贯性，使用{technique}确保扩展部分与原图自然衔接',
+                '照片扩图：延伸画面范围，填充周边区域，维持{style}构图风格，采用{technique}处理方式，确保{color}色调统一协调',
+                '照片扩图：补充图像边缘内容，完善整体画面，延续{style}视觉风格，运用{technique}技术，保持{color}色彩一致性'
             ]
         }
-        
-        # 变量池
-        styles = ['现代简约', '古典优雅', '自然清新', '艺术创意', '温馨舒适', '时尚前卫']
-        moods = ['温暖', '宁静', '活力', '优雅', '神秘', '浪漫']
-        techniques = ['细腻刻画', '光影渲染', '色彩层次', '质感表现', '构图平衡', '细节丰富']
-        colors = ['暖色调', '冷色调', '中性色', '对比色', '渐变色', '单色调']
-        characters = ['年轻人', '职场人士', '艺术家', '学生', '创作者', '生活家']
+
+        # 针对不同任务类型的专用变量池
+        if task_type == 'avatar_redesign':
+            styles = ['二次元', '动漫', '卡通', '手绘', 'Q版', '日系', '萌系', '治愈系']
+            moods = ['清晰', '柔和', '鲜明', '自然', '简洁', '精致', '生动', '和谐']
+            techniques = ['线条处理', '色彩调整', '风格转换', '细节优化', '特征保持', '比例调整']
+            colors = ['暖色调', '冷色调', '中性色', '高饱和度', '低饱和度', '明亮色调']
+            characters = ['头像', '人物', '形象', '角色', '画面主体', '目标对象']
+        elif task_type == 'room_decoration':
+            styles = ['现代简约', '北欧风格', '新中式', '美式乡村', '工业风格', '地中海风格']
+            moods = ['实用', '舒适', '简洁', '温馨', '明亮', '宽敞', '整洁', '协调']
+            techniques = ['空间布局', '色彩搭配', '材质选择', '灯光设计', '家具配置', '收纳设计']
+            colors = ['暖色调', '冷色调', '中性色', '木色系', '白色系', '灰色系']
+            characters = ['空间', '房间', '居室', '环境', '区域', '场所']
+        else:  # photo_extension
+            styles = ['原有风格', '自然风格', '简约风格', '写实风格', '清新风格', '现代风格']
+            moods = ['自然', '连贯', '统一', '协调', '平衡', '流畅', '完整', '真实']
+            techniques = ['边界扩展', '内容填充', '色彩匹配', '纹理延续', '光影处理', '透视校正']
+            colors = ['原图色调', '相近色系', '渐变过渡', '色温匹配', '饱和度统一', '明暗协调']
+            characters = ['画面', '场景', '图像', '构图', '背景', '环境']
         
         # 获取对应模板
         templates = base_templates.get(task_type, base_templates['avatar_redesign'])
@@ -311,18 +322,27 @@ class VirtualOrderService:
 
     def _generate_simple_content(self) -> Dict[str, str]:
         """使用原有的简单组合方式生成内容"""
-        # 随机选择标题 - 从新配置中获取
-        all_titles = []
-        if hasattr(self, 'task_titles_data') and self.task_titles_data:
-            for category_titles in self.task_titles_data.values():
-                all_titles.extend(category_titles[:10])  # 每类取前10个
-        if not all_titles:
-            all_titles = ["制作专业商务头像设计", "毛坯房现代简约风格设计", "半身照扩展为全身照效果"]
-        title = random.choice(all_titles)
+        # 随机选择任务类型
+        task_types = ['avatar_redesign', 'room_decoration', 'photo_extension']
+        task_type = random.choice(task_types)
 
-        # 随机选择背景和风格
-        background = random.choice(self.task_backgrounds)
-        style = random.choice(self.task_styles)
+        # 根据任务类型选择标题
+        if hasattr(self, 'task_titles_data') and self.task_titles_data and task_type in self.task_titles_data:
+            titles = self.task_titles_data[task_type][:10]  # 取前10个
+        else:
+            titles = ["制作专业商务头像设计", "毛坯房现代简约风格设计", "半身照扩展为全身照效果"]
+        title = random.choice(titles)
+
+        # 根据任务类型选择背景和风格
+        if hasattr(self, 'task_backgrounds_data') and self.task_backgrounds_data and task_type in self.task_backgrounds_data:
+            background = random.choice(self.task_backgrounds_data[task_type])
+        else:
+            background = "在温馨的环境中"
+
+        if hasattr(self, 'task_styles_data') and self.task_styles_data and task_type in self.task_styles_data:
+            style = random.choice(self.task_styles_data[task_type])
+        else:
+            style = "现代简约风格"
 
         # 添加随机修饰元素
         modifiers = []
@@ -345,7 +365,7 @@ class VirtualOrderService:
         return {
             'summary': title,
             'requirement': requirement,
-            'task_type': 'mixed'  # 简单内容标记为混合类型
+            'task_type': task_type  # 返回实际选择的任务类型
         }
 
     def _generate_template_based_content(self) -> Dict[str, str]:
@@ -394,6 +414,10 @@ class VirtualOrderService:
         """
         计算任务金额分配
 
+        新规则：当剩余金额小于10元时：
+        - 剩余金额 ≥ 8元 → 生成10元任务
+        - 剩余金额 < 8元 → 生成5元任务
+
         Args:
             total_amount: 总补贴金额
 
@@ -421,16 +445,24 @@ class VirtualOrderService:
                 amounts.append(remaining)
                 break
             elif remaining < min_amount * 2:
-                # 剩余金额小于10元，直接作为一个任务
-                amounts.append(remaining)
+                # 剩余金额小于10元，按新规则处理
+                if remaining >= 8:
+                    # 剩余金额 ≥ 8元，生成10元任务
+                    amounts.append(Decimal('10'))
+                else:
+                    # 剩余金额 < 8元，生成5元任务
+                    amounts.append(Decimal('5'))
                 break
             else:
                 # 从可用金额中筛选不超过剩余金额的选项
                 possible_amounts = [amount for amount in available_amounts if amount <= remaining]
 
                 if not possible_amounts:
-                    # 如果没有合适的金额选项，使用剩余金额
-                    amounts.append(remaining)
+                    # 如果没有合适的金额选项，按新规则处理剩余金额
+                    if remaining >= 8:
+                        amounts.append(Decimal('10'))
+                    else:
+                        amounts.append(Decimal('5'))
                     break
 
                 # 随机选择一个金额
@@ -469,10 +501,20 @@ class VirtualOrderService:
         if isinstance(image_info, dict):
             reference_image_url = image_info['file_url']
             image_id = image_info['image_id']
+            original_filename = image_info.get('original_filename')
         else:
             # 兼容旧的返回格式
             reference_image_url = image_info
             image_id = None
+            original_filename = None
+
+        # 如果是装修风格任务且有原始文件名，提取房间类型并重新生成任务内容
+        if task_content.get('task_type') == 'room_decoration' and original_filename:
+            room_type = self._extract_room_type_from_filename(original_filename)
+            if room_type:
+                # 重新生成包含房间类型的任务内容
+                task_content = self._generate_room_decoration_content_with_room_type(room_type)
+                logger.info(f"根据图片文件名 {original_filename} 提取到房间类型: {room_type}，重新生成任务内容")
 
         task = Tasks(
             summary=task_content['summary'],
@@ -1979,23 +2021,40 @@ class VirtualOrderService:
             # 如果有剩余价值，重新生成任务
             if remaining_task_value > Decimal('0'):
                 try:
-                    # 使用现有的任务金额分配逻辑
-                    new_task_amounts = self.calculate_task_amounts(remaining_task_value)
-                    logger.info(f"剩余价值 {remaining_task_value} 分配为: {new_task_amounts}")
+                    # 使用虚拟客服分配策略重新生成任务
+                    allocation_result = self.allocator.allocate_tasks_to_services(
+                        remaining_task_value, task.target_student_id, pool.student_name
+                    )
 
-                    # 生成新的虚拟任务
-                    for amount in new_task_amounts:
-                        new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
-                        if new_task:
-                            self.db.add(new_task)
+                    if allocation_result.success:
+                        # 记录生成的任务信息
+                        for allocated_task in allocation_result.allocated_tasks:
                             generated_tasks_info.append({
-                                'task_id': new_task.id,
-                                'amount': float(amount)
+                                'task_id': allocated_task['id'],
+                                'amount': allocated_task['amount'],
+                                'founder_id': allocated_task['founder_id'],
+                                'founder': allocated_task['founder']
                             })
-                            logger.info(f"重新生成任务: ID={new_task.id}, 金额={amount}")
-                        else:
-                            logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
-                            break
+                            logger.info(f"重新生成任务: ID={allocated_task['id']}, 金额={allocated_task['amount']}, "
+                                       f"分配给客服: {allocated_task['founder']}")
+                    else:
+                        logger.warning(f"使用虚拟客服分配策略重新生成任务失败: {allocation_result.error_message}")
+                        # 回退到原有方式（不分配虚拟客服）
+                        new_task_amounts = self.calculate_task_amounts(remaining_task_value)
+                        logger.info(f"回退到原有方式，剩余价值 {remaining_task_value} 分配为: {new_task_amounts}")
+
+                        for amount in new_task_amounts:
+                            new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
+                            if new_task:
+                                self.db.add(new_task)
+                                generated_tasks_info.append({
+                                    'task_id': new_task.id,
+                                    'amount': float(amount)
+                                })
+                                logger.info(f"重新生成任务(无客服分配): ID={new_task.id}, 金额={amount}")
+                            else:
+                                logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
+                                break
 
                 except Exception as e:
                     logger.error(f"重新生成任务失败: {str(e)}")
@@ -2150,7 +2209,8 @@ class VirtualOrderService:
             return {
                 'file_url': image_result.file_url,
                 'image_id': image_result.image_id,
-                'category_code': category_code
+                'category_code': category_code,
+                'original_filename': image_result.original_filename
             }
             
         except Exception as e:
@@ -2679,25 +2739,62 @@ class VirtualOrderService:
                     'message': f"任务{task_id}没有剩余价值需要处理"
                 }
 
-            # 使用现有的任务金额分配逻辑
-            new_task_amounts = self.calculate_task_amounts(remaining_task_value)
-            logger.info(f"剩余价值 {remaining_task_value} 分配为: {new_task_amounts}")
-
             generated_tasks_info = []
 
-            # 生成新的虚拟任务
-            for amount in new_task_amounts:
-                new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
-                if new_task:
-                    self.db.add(new_task)
-                    generated_tasks_info.append({
-                        'task_id': new_task.id,
-                        'amount': float(amount)
-                    })
-                    logger.info(f"为剩余价值重新生成任务: ID={new_task.id}, 金额={amount}")
+            # 使用虚拟客服分配策略重新生成任务
+            try:
+                allocation_result = self.allocator.allocate_tasks_to_services(
+                    remaining_task_value, task.target_student_id, pool.student_name
+                )
+
+                if allocation_result.success:
+                    # 记录生成的任务信息
+                    for allocated_task in allocation_result.allocated_tasks:
+                        generated_tasks_info.append({
+                            'task_id': allocated_task['id'],
+                            'amount': allocated_task['amount'],
+                            'founder_id': allocated_task['founder_id'],
+                            'founder': allocated_task['founder']
+                        })
+                        logger.info(f"为剩余价值重新生成任务: ID={allocated_task['id']}, 金额={allocated_task['amount']}, "
+                                   f"分配给客服: {allocated_task['founder']}")
                 else:
-                    logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
-                    break
+                    logger.warning(f"使用虚拟客服分配策略处理剩余价值失败: {allocation_result.error_message}")
+                    # 回退到原有方式（不分配虚拟客服）
+                    new_task_amounts = self.calculate_task_amounts(remaining_task_value)
+                    logger.info(f"回退到原有方式，剩余价值 {remaining_task_value} 分配为: {new_task_amounts}")
+
+                    for amount in new_task_amounts:
+                        new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
+                        if new_task:
+                            self.db.add(new_task)
+                            generated_tasks_info.append({
+                                'task_id': new_task.id,
+                                'amount': float(amount)
+                            })
+                            logger.info(f"为剩余价值重新生成任务(无客服分配): ID={new_task.id}, 金额={amount}")
+                        else:
+                            logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
+                            break
+
+            except Exception as e:
+                logger.error(f"使用虚拟客服分配策略失败: {str(e)}，回退到原有方式")
+                # 回退到原有方式
+                new_task_amounts = self.calculate_task_amounts(remaining_task_value)
+                logger.info(f"回退到原有方式，剩余价值 {remaining_task_value} 分配为: {new_task_amounts}")
+
+                for amount in new_task_amounts:
+                    new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
+                    if new_task:
+                        self.db.add(new_task)
+                        generated_tasks_info.append({
+                            'task_id': new_task.id,
+                            'amount': float(amount)
+                        })
+                        logger.info(f"为剩余价值重新生成任务(回退方式): ID={new_task.id}, 金额={amount}")
+                    else:
+                        logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
+                        break
 
             self.db.commit()
 
@@ -2820,3 +2917,117 @@ class VirtualOrderService:
                     'test_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
             }
+
+    def _extract_room_type_from_filename(self, filename: str) -> Optional[str]:
+        """
+        从图片文件名中提取房间类型
+
+        Args:
+            filename: 图片原始文件名
+
+        Returns:
+            Optional[str]: 房间类型，如果无法识别则返回None
+        """
+        if not filename:
+            return None
+
+        # 房间类型关键词映射
+        room_type_keywords = {
+            '客厅': ['客厅'],
+            '书房': ['书房'],
+            '卧室': ['卧室', '主卧', '次卧', '儿童房'],
+            '厨房': ['厨房'],
+            '餐厅': ['餐厅'],
+            '卫生间': ['卫生间', '浴室', '洗手间'],
+            '阳台': ['阳台'],
+            '玄关': ['玄关', '门厅'],
+            '衣帽间': ['衣帽间', '衣柜间'],
+            '储物间': ['储物间', '杂物间']
+        }
+
+        # 将文件名转换为小写进行匹配
+        filename_lower = filename.lower()
+
+        # 遍历房间类型关键词，寻找匹配
+        for room_type, keywords in room_type_keywords.items():
+            for keyword in keywords:
+                if keyword in filename_lower:
+                    return room_type
+
+        # 如果没有找到匹配的关键词，返回None
+        return None
+
+    def _generate_room_decoration_content_with_room_type(self, room_type: str) -> Dict[str, str]:
+        """
+        根据房间类型生成装修风格任务内容
+
+        Args:
+            room_type: 房间类型
+
+        Returns:
+            Dict[str, str]: 任务内容
+        """
+        # 针对不同房间类型的装修风格变量
+        room_specific_styles = {
+            '客厅': ['现代简约', '北欧风格', '美式乡村', '新中式', '轻奢现代', '简约欧式'],
+            '书房': ['新中式', '简约现代', '美式传统', '日式禅意', '工业风格', '北欧风格'],
+            '卧室': ['现代简约', '北欧风格', '田园风格', '轻奢现代', '日式禅意', '法式浪漫'],
+            '厨房': ['现代简约', '北欧风格', '美式乡村', '地中海风格', '工业风格', '简约欧式'],
+            '餐厅': ['现代简约', '美式乡村', '新中式', '北欧风格', '法式浪漫', '轻奢现代'],
+            '卫生间': ['现代简约', '北欧风格', '日式禅意', '轻奢现代', '地中海风格', '工业风格'],
+            '阳台': ['现代简约', '田园风格', '地中海风格', '北欧风格', '日式禅意', '美式乡村'],
+            '玄关': ['现代简约', '新中式', '轻奢现代', '北欧风格', '美式传统', '简约欧式'],
+            '衣帽间': ['现代简约', '轻奢现代', '北欧风格', '美式传统', '简约欧式', '新中式'],
+            '储物间': ['现代简约', '北欧风格', '工业风格', '日式禅意', '简约欧式', '美式乡村']
+        }
+
+        # 针对不同房间类型的氛围描述
+        room_specific_moods = {
+            '客厅': ['温馨', '舒适', '雅致', '大气', '温暖', '宁静'],
+            '书房': ['宁静', '雅致', '专注', '文雅', '沉静', '清幽'],
+            '卧室': ['温馨', '舒适', '宁静', '浪漫', '安逸', '私密'],
+            '厨房': ['整洁', '实用', '温馨', '现代', '便利', '舒适'],
+            '餐厅': ['温馨', '雅致', '舒适', '和谐', '温暖', '愉悦'],
+            '卫生间': ['清洁', '现代', '舒适', '简洁', '实用', '明亮'],
+            '阳台': ['清新', '自然', '舒适', '惬意', '明亮', '开阔'],
+            '玄关': ['简洁', '大气', '实用', '雅致', '明亮', '整洁'],
+            '衣帽间': ['整洁', '实用', '雅致', '现代', '舒适', '精致'],
+            '储物间': ['整洁', '实用', '简洁', '现代', '便利', '有序']
+        }
+
+        # 获取房间特定的风格和氛围，如果没有则使用默认值
+        styles = room_specific_styles.get(room_type, ['现代简约', '北欧风格', '美式乡村', '新中式', '轻奢现代', '简约欧式'])
+        moods = room_specific_moods.get(room_type, ['温馨', '舒适', '雅致', '现代', '宁静', '和谐'])
+
+        # 通用的技法和色彩
+        techniques = ['空间布局', '色彩搭配', '材质选择', '灯光设计', '家具配置', '装饰点缀']
+        colors = ['暖色调', '冷色调', '中性色', '对比色', '渐变色', '单色调']
+
+        # 随机选择变量
+        style = random.choice(styles)
+        mood = random.choice(moods)
+        technique = random.choice(techniques)
+        color = random.choice(colors)
+
+        # 生成房间特定的标题
+        if hasattr(self, 'task_titles_data') and self.task_titles_data and 'room_decoration' in self.task_titles_data:
+            # 从现有标题中选择一个，然后添加房间类型
+            base_title = random.choice(self.task_titles_data['room_decoration'][:50])  # 取前50个
+            title = f"{room_type}{style}风格设计"
+        else:
+            title = f"{room_type}{style}风格装修设计"
+
+        # 生成房间特定的需求描述
+        requirement_templates = [
+            f'{room_type}装修风格：设计{style}风格{room_type}，重点处理{technique}，使用{color}作为主色调，确保空间{mood}实用，整体效果统一',
+            f'{room_type}装修风格：制作{style}风格{room_type}方案，着重{technique}设计，采用{color}配色，注重{mood}性和美观性的平衡',
+            f'{room_type}装修风格：规划{style}风格{room_type}设计，优化{technique}布局，运用{color}色彩搭配，满足{mood}需求和审美要求'
+        ]
+
+        requirement = random.choice(requirement_templates)
+
+        return {
+            'summary': title,
+            'requirement': requirement,
+            'task_type': 'room_decoration'
+        }

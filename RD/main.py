@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
     try:
         config_service = ConfigService(db)
         config_service.init_auto_confirm_config()
+        config_service.init_virtual_task_generation_config()
     except Exception as e:
         print(f"初始化配置失败: {e}")
     finally:

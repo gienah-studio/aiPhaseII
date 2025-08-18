@@ -59,6 +59,18 @@ const ResourceManagement: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const hasLoadedRef = useRef(false);
+
+  // 分页状态
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+    total: 0,
+    showSizeChanger: true,
+    showQuickJumper: true,
+    showTotal: (total: number, range: [number, number]) =>
+      `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+    pageSizeOptions: ['10', '20', '50', '100']
+  });
   
   // 批量操作相关状态
   const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
@@ -116,22 +128,31 @@ const ResourceManagement: React.FC = () => {
   useEffect(() => {
     if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
-      loadInitialData();
+      loadInitialData(pagination.current, pagination.pageSize);
     }
   }, []);
 
-  const loadInitialData = async () => {
+  const loadInitialData = async (page: number = 1, pageSize: number = 20) => {
     setLoading(true);
     try {
       const [resourcesRes, categoriesRes, statsRes] = await Promise.allSettled([
-        ResourceAPI.getResources(),
+        ResourceAPI.getResources({ page, pageSize }),
         CategoryAPI.getCategories(),
         ResourceAPI.getResourceStats()
       ]);
 
       if (resourcesRes.status === 'fulfilled') {
-        const rawData = resourcesRes.value.data.items || [];
+        const responseData = resourcesRes.value.data;
+        const rawData = responseData.items || [];
         setResources(mapResourceData(rawData));
+
+        // 更新分页信息
+        setPagination(prev => ({
+          ...prev,
+          current: responseData.page || page,
+          pageSize: responseData.size || pageSize,
+          total: responseData.total || 0
+        }));
       }
 
       if (categoriesRes.status === 'fulfilled') {
@@ -199,10 +220,12 @@ const ResourceManagement: React.FC = () => {
   };
 
   // 处理筛选
-  const handleFilterChange = async (filters: FilterValues) => {
+  const handleFilterChange = async (filters: FilterValues, page: number = 1, pageSize: number = pagination.pageSize) => {
     setLoading(true);
     try {
       const params = {
+        page,
+        pageSize,
         keyword: filters.keyword,
         categoryId: filters.category,
         status: filters.status as 'available' | 'used' | 'disabled' | undefined,
@@ -211,13 +234,35 @@ const ResourceManagement: React.FC = () => {
       };
 
       const response = await ResourceAPI.getResources(params);
-      const rawData = response.data.items || [];
+      const responseData = response.data;
+      const rawData = responseData.items || [];
       setResources(mapResourceData(rawData));
+
+      // 更新分页信息
+      setPagination(prev => ({
+        ...prev,
+        current: responseData.page || page,
+        pageSize: responseData.size || pageSize,
+        total: responseData.total || 0
+      }));
     } catch (error) {
       message.error('筛选资源失败');
     } finally {
       setLoading(false);
     }
+  };
+
+  // 处理分页变化
+  const handleTableChange = (page: number, pageSize?: number) => {
+    const newPageSize = pageSize || pagination.pageSize;
+    setPagination(prev => ({
+      ...prev,
+      current: page,
+      pageSize: newPageSize
+    }));
+
+    // 重新加载数据
+    loadInitialData(page, newPageSize);
   };
 
   // 处理资源上传
@@ -234,7 +279,7 @@ const ResourceManagement: React.FC = () => {
 
       await Promise.all(uploadPromises);
       message.success('上传成功');
-      loadInitialData(); // 重新加载数据
+      loadInitialData(pagination.current, pagination.pageSize); // 重新加载数据
     } catch (error) {
       throw error;
     }
@@ -249,7 +294,7 @@ const ResourceManagement: React.FC = () => {
         tags: formData.tags || [],
         description: formData.description
       });
-      loadInitialData(); // 重新加载数据
+      loadInitialData(pagination.current, pagination.pageSize); // 重新加载数据
     } catch (error) {
       throw error;
     }
@@ -265,17 +310,17 @@ const ResourceManagement: React.FC = () => {
 
   const handleCategoryAdd = async (category: Omit<CategoryNode, 'id' | 'resourceCount'>) => {
     await CategoryAPI.createCategory(category);
-    loadInitialData();
+    loadInitialData(pagination.current, pagination.pageSize);
   };
 
   const handleCategoryEdit = async (categoryId: string, category: Partial<CategoryNode>) => {
     await CategoryAPI.updateCategory(categoryId, category);
-    loadInitialData();
+    loadInitialData(pagination.current, pagination.pageSize);
   };
 
   const handleCategoryDelete = async (categoryId: string) => {
     await CategoryAPI.deleteCategory(categoryId);
-    loadInitialData();
+    loadInitialData(pagination.current, pagination.pageSize);
   };
 
   // 资源操作
@@ -296,7 +341,7 @@ const ResourceManagement: React.FC = () => {
     try {
       await ResourceAPI.deleteResource(record.id);
       message.success('删除成功');
-      loadInitialData();
+      loadInitialData(pagination.current, pagination.pageSize);
     } catch (error) {
       message.error('删除失败');
     }
@@ -359,7 +404,7 @@ const ResourceManagement: React.FC = () => {
       setBatchMoveModalOpen(false);
       setSelectedTargetCategory('');
       setSelectedRowKeys([]);
-      loadInitialData();
+      loadInitialData(pagination.current, pagination.pageSize);
     } catch (error: any) {
       message.error(error?.response?.data?.msg || '批量移动失败');
     } finally {
@@ -397,7 +442,7 @@ const ResourceManagement: React.FC = () => {
       
       setBatchDeleteModalOpen(false);
       setSelectedRowKeys([]);
-      loadInitialData();
+      loadInitialData(pagination.current, pagination.pageSize);
     } catch (error: any) {
       message.error(error?.response?.data?.msg || '批量删除失败');
     } finally {
@@ -486,7 +531,8 @@ const ResourceManagement: React.FC = () => {
               onFilterChange={handleFilterChange}
               onReset={() => {
                 setSelectedCategory('');
-                loadInitialData();
+                setPagination(prev => ({ ...prev, current: 1 }));
+                loadInitialData(1, pagination.pageSize);
               }}
               categories={categoryOptions}
               uploadBatches={[]}
@@ -514,6 +560,8 @@ const ResourceManagement: React.FC = () => {
                   onSelectionChange={setSelectedRowKeys}
                   onView={handleResourceView}
                   onDelete={handleResourceDelete}
+                  pagination={pagination}
+                  onTableChange={handleTableChange}
                 />
               ) : (
                 <ResourceCards
