@@ -204,16 +204,16 @@ const StudentModule: React.FC = () => {
       console.error('导出失败:', error);
 
       // 处理错误响应
-      if (error?.response?.data instanceof Blob) {
+      if ((error as any)?.response?.data instanceof Blob) {
         try {
-          const text = await error.response.data.text();
+          const text = await (error as any).response.data.text();
           const errorData = JSON.parse(text);
           message.error(`导出失败: ${errorData.message || '服务器错误'}`);
         } catch {
           message.error('导出失败，服务器返回了无效的错误信息');
         }
       } else {
-        const errorMsg = error?.response?.data?.message || error?.message || '网络错误';
+        const errorMsg = (error as any)?.response?.data?.message || (error as any)?.message || '网络错误';
         message.error(`导出失败: ${errorMsg}`);
       }
     }
@@ -258,7 +258,7 @@ const StudentModule: React.FC = () => {
       return true;
     } catch (error) {
       console.error('导入失败:', error);
-      const errorMsg = error?.response?.data?.message || error?.message || '导入失败';
+      const errorMsg = (error as any)?.response?.data?.message || (error as any)?.message || '导入失败';
       message.error(errorMsg);
       return false;
     } finally {

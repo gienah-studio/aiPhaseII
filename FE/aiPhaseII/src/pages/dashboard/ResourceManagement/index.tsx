@@ -150,7 +150,7 @@ const ResourceManagement: React.FC = () => {
         setPagination(prev => ({
           ...prev,
           current: responseData.page || page,
-          pageSize: responseData.size || pageSize,
+          pageSize: responseData.pageSize || pageSize,
           total: responseData.total || 0
         }));
       }
@@ -206,7 +206,7 @@ const ResourceManagement: React.FC = () => {
           },
           {
             title: '可用率',
-            value: stats.totalImages > 0 ? `${((stats.availableImages / stats.totalImages) * 100).toFixed(1)}%` : '0%',
+            value: (stats.totalImages || 0) > 0 ? `${(((stats.availableImages || 0) / (stats.totalImages || 1)) * 100).toFixed(1)}%` : '0%',
             icon: <DatabaseOutlined />,
             color: '#722ed1'
           }
@@ -242,7 +242,7 @@ const ResourceManagement: React.FC = () => {
       setPagination(prev => ({
         ...prev,
         current: responseData.page || page,
-        pageSize: responseData.size || pageSize,
+        pageSize: responseData.pageSize || pageSize,
         total: responseData.total || 0
       }));
     } catch (error) {

@@ -92,7 +92,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
     },
     {
-      type: 'divider'
+      type: 'divider' as const
     },
     {
       key: 'logout',

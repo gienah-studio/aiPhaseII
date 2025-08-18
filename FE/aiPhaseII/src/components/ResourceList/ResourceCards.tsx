@@ -151,7 +151,7 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
                         {/* 分类 */}
                         <Space size="small">
                           <FileImageOutlined className={styles.infoIcon} />
-                          <Tag color="blue" size="small">{item.category}</Tag>
+                          <Tag color="blue">{item.category}</Tag>
                         </Space>
 
                         {/* 文件信息 */}
@@ -162,31 +162,33 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
                         </div>
 
                         {/* 质量评分 */}
-                        <div className={styles.ratingInfo}>
-                          <Rate
-                            value={item.qualityScore}
-                            disabled
-                            allowHalf
-                            style={{ fontSize: 14 }}
-                          />
-                          <Text type="secondary" className={styles.scoreText}>
-                            ({item.qualityScore}/10)
-                          </Text>
-                        </div>
+                        {item.qualityScore !== undefined && (
+                          <div className={styles.ratingInfo}>
+                            <Rate
+                              value={item.qualityScore / 2}
+                              disabled
+                              allowHalf
+                              style={{ fontSize: 14 }}
+                            />
+                            <Text type="secondary" className={styles.scoreText}>
+                              ({item.qualityScore}/10)
+                            </Text>
+                          </div>
+                        )}
 
                         {/* 标签 */}
-                        {item.tags.length > 0 && (
+                        {item.tags && item.tags.length > 0 && (
                           <div className={styles.tagsInfo}>
                             <Space size={2} wrap>
                               <TagsOutlined className={styles.infoIcon} />
-                              {item.tags.slice(0, 3).map((tag, index) => (
-                                <Tag key={index} color="geekblue" size="small">
+                              {item.tags.slice(0, 3).map((tag: string, index: number) => (
+                                <Tag key={index} color="geekblue">
                                   {tag}
                                 </Tag>
                               ))}
                               {item.tags.length > 3 && (
                                 <Tooltip title={item.tags.slice(3).join(', ')}>
-                                  <Tag color="default" size="small">
+                                  <Tag color="default">
                                     +{item.tags.length - 3}
                                   </Tag>
                                 </Tooltip>

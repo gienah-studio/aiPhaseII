@@ -12,15 +12,13 @@ import {
   Typography,
   message,
   Divider,
-  Badge,
-  Tooltip
+  Badge
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   FolderOutlined,
-  FolderOpenOutlined,
   FileImageOutlined,
   EyeOutlined,
   FolderAddOutlined
@@ -28,7 +26,7 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import styles from './index.module.css';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 
 export interface CategoryNode {
@@ -58,8 +56,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   onCategorySelect,
   onCategoryAdd,
   onCategoryEdit,
-  onCategoryDelete,
-  loading
+  onCategoryDelete
 }) => {
   const [form] = Form.useForm();
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -276,7 +273,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   ];
 
   const treeData = convertToTreeData(categories);
-  const selectedCategoryData = selectedCategory ? findCategoryById(categories, selectedCategory) : null;
+  // const selectedCategoryData = selectedCategory ? findCategoryById(categories, selectedCategory) : null;
 
   return (
     <div className={styles.categoryManager}>
@@ -289,7 +286,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
             selectedKeys={selectedCategory ? [selectedCategory] : []}
             expandedKeys={expandedKeys}
             onSelect={handleTreeSelect}
-            onExpand={setExpandedKeys}
+            onExpand={(keys) => setExpandedKeys(keys as string[])}
             loadData={undefined}
             className={styles.tree}
           />
@@ -555,7 +552,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                     <Space wrap>
                       {currentCategory.children.map(child => (
                         <Badge key={child.id} count={child.resourceCount} size="small">
-                          <Button size="small" type="ghost">
+                          <Button size="small" type="default">
                             {child.name}
                           </Button>
                         </Badge>

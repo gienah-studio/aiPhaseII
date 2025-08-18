@@ -137,11 +137,11 @@ const StudentIncome: React.FC = () => {
             </span>
           </Space>
           <Space size="small">
-            <Tag color="blue" size="small">ID: {record.studentId}</Tag>
+            <Tag color="blue">ID: {record.studentId}</Tag>
             {record.commissionRate === 'N/A' ? (
-              <Tag color="orange" size="small">虚拟任务</Tag>
+              <Tag color="orange">虚拟任务</Tag>
             ) : (
-              <Tag color="green" size="small">
+              <Tag color="green">
                 返佣: {(() => {
                   const rateNum = parseFloat(record.commissionRate);
                   if (isNaN(rateNum)) return '0.0';

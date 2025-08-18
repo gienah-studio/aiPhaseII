@@ -9,14 +9,14 @@ const messageConfig = {
 // 配置全局消息提示
 antdMessage.config(messageConfig);
 
-// 消息类型枚举
-export enum MessageType {
-  SUCCESS = 'success',
-  ERROR = 'error',
-  WARNING = 'warning',
-  INFO = 'info',
-  LOADING = 'loading',
-}
+// 消息类型常量
+export const MessageType = {
+  SUCCESS: 'success',
+  ERROR: 'error',
+  WARNING: 'warning',
+  INFO: 'info',
+  LOADING: 'loading',
+} as const;
 
 // 消息提示选项
 export interface MessageOptions {

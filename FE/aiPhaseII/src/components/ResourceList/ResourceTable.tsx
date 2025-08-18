@@ -31,6 +31,8 @@ export interface ResourceItem {
   dimensions: string;
   status: 'available' | 'used' | 'disabled';
   uploadTime: string;
+  qualityScore?: number;
+  tags?: string[];
 }
 
 interface ResourceTableProps {
@@ -202,7 +204,7 @@ const ResourceTable: React.FC<ResourceTableProps> = ({
 
   const rowSelection: TableProps<ResourceItem>['rowSelection'] = {
     selectedRowKeys,
-    onChange: onSelectionChange,
+    onChange: (selectedRowKeys) => onSelectionChange(selectedRowKeys as string[]),
     getCheckboxProps: (record) => ({
       disabled: record.status === 'disabled'
     })

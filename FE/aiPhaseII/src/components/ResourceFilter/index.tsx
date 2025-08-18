@@ -8,8 +8,7 @@ import {
   Typography,
   Tag,
   Card,
-  Checkbox,
-  Divider
+  Checkbox
 } from 'antd';
 import {
   SearchOutlined,
@@ -22,7 +21,7 @@ import styles from './index.module.css';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
-const { Option } = Select;
+// const { Option } = Select;
 
 export interface FilterValues {
   keyword?: string;
