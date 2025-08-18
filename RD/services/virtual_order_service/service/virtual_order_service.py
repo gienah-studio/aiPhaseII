@@ -420,9 +420,9 @@ class VirtualOrderService:
         """
         计算任务金额分配
 
-        新规则：当剩余金额小于10元时：
-        - 剩余金额 ≥ 8元 → 生成10元任务
-        - 剩余金额 < 8元 → 生成5元任务
+        新规则：
+        - 8元及8元以上 → 全部算成10元
+        - 8元以下 → 全部算成5元
 
         Args:
             total_amount: 总补贴金额
@@ -433,49 +433,16 @@ class VirtualOrderService:
         amounts = []
         remaining = total_amount
 
-        # 如果金额小于等于5，按新规则处理
-        if remaining <= 5:
-            # 小于8元的都生成5元任务
-            return [Decimal('5')]
-
-        # 最小单位5元，最大单位25元
-        min_amount = Decimal('5')
-        max_amount = Decimal('25')
-
-        # 固定的金额选项：5, 10, 15, 20, 25
-        available_amounts = [Decimal('5'), Decimal('10'), Decimal('15'), Decimal('20'), Decimal('25')]
-
-        # 随机生成5-25之间的5的倍数任务
+        # 按新规则严格处理
         while remaining > 0:
-            if remaining <= min_amount:
-                # 剩余金额小于等于5元，按新规则生成5元任务
-                amounts.append(Decimal('5'))
-                break
-            elif remaining < min_amount * 2:
-                # 剩余金额小于10元，按新规则处理
-                if remaining >= 8:
-                    # 剩余金额 ≥ 8元，生成10元任务
-                    amounts.append(Decimal('10'))
-                else:
-                    # 剩余金额 < 8元，生成5元任务
-                    amounts.append(Decimal('5'))
-                break
+            if remaining >= 8:
+                # 8元及以上，生成10元任务
+                amounts.append(Decimal('10'))
+                remaining -= 10
             else:
-                # 从可用金额中筛选不超过剩余金额的选项
-                possible_amounts = [amount for amount in available_amounts if amount <= remaining]
-
-                if not possible_amounts:
-                    # 如果没有合适的金额选项，按新规则处理剩余金额
-                    if remaining >= 8:
-                        amounts.append(Decimal('10'))
-                    else:
-                        amounts.append(Decimal('5'))
-                    break
-
-                # 随机选择一个金额
-                selected_amount = random.choice(possible_amounts)
-                amounts.append(selected_amount)
-                remaining -= selected_amount
+                # 8元以下，生成5元任务
+                amounts.append(Decimal('5'))
+                remaining -= 5
 
         return amounts
     
