@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta
-import re
 from sqlalchemy.orm import Session
-from sqlalchemy import text, and_, func
-from sqlalchemy.sql import case
+from sqlalchemy import text, and_
 import bcrypt
 from decimal import Decimal
 
@@ -12,7 +10,7 @@ from shared.models.original_user import OriginalUser
 from shared.models.agents import Agents
 from shared.models.userinfo import UserInfo
 from shared.models.tasks import Tasks
-from shared.utils.security import create_access_token, get_password_hash, verify_password
+from shared.utils.security import create_access_token
 from shared.exceptions import BusinessException
 from shared.utils.redis_util import RedisUtil
 
@@ -340,38 +338,7 @@ class AuthService:
 
 
 
-    def change_password(self, user_id: int, old_password: str, new_password: str, new_password_confirm: str):
-        """使用原密码修改为新密码"""
-        # 验证两次输入的新密码是否一致
-        if new_password != new_password_confirm:
-            raise BusinessException(
-                code=400,
-                message="两次输入的新密码不一致",
-                data=None
-            )
 
-        # 获取用户信息
-        user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise BusinessException(
-                code=404,
-                message="用户不存在",
-                data=None
-            )
-
-        # 验证原密码是否正确
-        if not verify_password(old_password, user.password):
-            raise BusinessException(
-                code=400,
-                message="原密码不正确",
-                data=None
-            )
-
-        # 更新密码
-        user.password = get_password_hash(new_password)
-        self.db.commit()
-
-        return True
 
     def logout(self, user_id: int, token: str):
         """退出登录，使当前token失效"""

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date, time
 from typing import List
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 
 from shared.database.session import SessionLocal
 from shared.models.tasks import Tasks
@@ -216,10 +216,29 @@ class VirtualOrderTaskScheduler:
             # 重新计算剩余金额（基于实际消耗的补贴）
             pool.remaining_amount = pool.total_subsidy - pool.consumed_subsidy
             pool.updated_at = datetime.now()
-            
-            # 计算应该生成的任务金额（剩余金额）
-            amount_to_generate = pool.remaining_amount
-            
+
+            # 检查当天是否还有真正的剩余补贴额度
+            # 需要考虑当前还有多少未完成的虚拟任务
+            current_pending_amount = db.query(func.sum(Tasks.commission)).filter(
+                and_(
+                    Tasks.is_virtual == True,
+                    Tasks.is_bonus_pool == False,  # 排除奖金池任务
+                    Tasks.target_student_id == student_id,
+                    Tasks.status.in_(['0', '1', '2'])  # 未接单、已接单、进行中
+                )
+            ).scalar() or Decimal('0')
+
+            # 计算真正可用于生成新任务的金额
+            # 总补贴 - 已消耗补贴 - 当前待完成任务金额
+            actual_available_amount = pool.total_subsidy - pool.consumed_subsidy - current_pending_amount
+
+            # 确保不为负数
+            amount_to_generate = max(Decimal('0'), actual_available_amount)
+
+            logger.info(f"学生 {pool.student_name} 过期任务重新生成检查: "
+                       f"总补贴={pool.total_subsidy}, 已消耗={pool.consumed_subsidy}, "
+                       f"当前待完成={current_pending_amount}, 可生成金额={amount_to_generate}")
+
             # 重新生成任务
             if amount_to_generate > 0:
                 # 优先使用新的虚拟客服分配策略
@@ -265,7 +284,9 @@ class VirtualOrderTaskScheduler:
                 pool.last_allocation_at = datetime.now()
 
                 logger.info(f"补贴池状态更新 - 总补贴: {pool.total_subsidy}, 已分配: {pool.allocated_amount}, 剩余: {pool.remaining_amount}, 已完成: {pool.completed_amount}")
-            
+            else:
+                logger.info(f"学生 {pool.student_name} 当日补贴额度已满，跳过过期任务重新生成")
+
         except Exception as e:
             db.rollback()
             logger.error(f"处理学生 {student_id} 的过期任务失败: {str(e)}")
@@ -342,19 +363,21 @@ class VirtualOrderTaskScheduler:
         Returns:
             List[Tasks]: 过期任务列表
         """
-        # 1. 常规过期任务（排除状态为1、2、3、4的任务）
+        # 1. 常规过期任务（排除状态为1、2、3、4的任务，排除奖金池任务）
         regular_expired = db.query(Tasks).filter(
             and_(
                 Tasks.is_virtual == True,
+                Tasks.is_bonus_pool == False,  # 排除奖金池任务
                 Tasks.status.notin_(['1', '2', '3', '4']),
                 Tasks.end_date <= current_time
             )
         ).all()
 
-        # 2. 状态为2的可能过期任务（使用交稿时间判断）
+        # 2. 状态为2的可能过期任务（使用交稿时间判断，排除奖金池任务）
         status_2_candidates = db.query(Tasks).filter(
             and_(
                 Tasks.is_virtual == True,
+                Tasks.is_bonus_pool == False,  # 排除奖金池任务
                 Tasks.status == '2',
                 Tasks.delivery_date <= current_time
             )
@@ -400,6 +423,7 @@ class VirtualOrderTaskScheduler:
             completed_tasks = db.query(Tasks).filter(
                 and_(
                     Tasks.is_virtual == True,
+                    Tasks.is_bonus_pool == False,  # 排除奖金池任务
                     Tasks.status == '4',  # 已完成状态
                     Tasks.value_recycled == False,  # 未回收价值
                     Tasks.updated_at >= five_minutes_ago,  # 最近5分钟内更新的
@@ -529,11 +553,12 @@ class VirtualOrderTaskScheduler:
                 await self.mark_value_recycled_only(db)
                 return
 
-            # 查找所有未回收价值的已完成虚拟任务
+            # 查找所有未回收价值的已完成虚拟任务（排除奖金池任务）
             # 移除时间限制，确保服务中断后重启时能处理所有积压的任务
             completed_tasks = db.query(Tasks).filter(
                 and_(
                     Tasks.is_virtual == True,
+                    Tasks.is_bonus_pool == False,  # 排除奖金池任务
                     Tasks.status == '4',  # 已完成状态
                     Tasks.value_recycled == False,  # 未回收价值
                     Tasks.target_student_id.isnot(None)  # 有目标学生的任务
@@ -607,23 +632,34 @@ class VirtualOrderTaskScheduler:
                 logger.warning(f"未找到学生 {student_id} 的补贴池")
                 return
 
-            # 价值回收：只根据回收价值生成任务，不使用剩余补贴
+            # 价值回收：检查是否还有剩余补贴额度
             logger.info(f"学生 {pool.student_name} 价值回收: 回收金额 {recycled_amount}, 剩余补贴 {pool.remaining_amount}")
 
-            # 如果回收价值大于0，重新生成任务
-            if recycled_amount > 0:
+            # 检查是否还有剩余补贴额度
+            if pool.remaining_amount <= 0:
+                logger.info(f"学生 {pool.student_name} 当日补贴已用完，跳过价值回收任务生成")
+                return
+
+            # 计算实际可用于生成任务的金额（不能超过剩余补贴）
+            available_amount = min(recycled_amount, pool.remaining_amount)
+
+            if available_amount < recycled_amount:
+                logger.info(f"学生 {pool.student_name} 价值回收受限：回收金额 {recycled_amount}，但剩余补贴仅 {pool.remaining_amount}，实际生成任务金额 {available_amount}")
+
+            # 如果可用金额大于0，重新生成任务
+            if available_amount > 0:
                 # 优先使用新的虚拟客服分配策略
                 try:
                     result = service.generate_virtual_tasks_with_service_allocation(
-                        student_id, pool.student_name, recycled_amount
+                        student_id, pool.student_name, available_amount
                     )
 
                     if result['success']:
-                        # 更新补贴池：将回收价值加入剩余金额
-                        pool.remaining_amount += recycled_amount
+                        # 更新补贴池：减少剩余金额（不增加，因为这是在消耗补贴）
+                        pool.remaining_amount -= available_amount
                         pool.updated_at = datetime.now()
 
-                        logger.info(f"使用虚拟客服分配策略为学生 {pool.student_name} 重新生成了 {len(result['tasks'])} 个任务，总金额: {result['total_amount']}")
+                        logger.info(f"使用虚拟客服分配策略为学生 {pool.student_name} 重新生成了 {len(result['tasks'])} 个任务，总金额: {result['total_amount']}，剩余补贴: {pool.remaining_amount}")
                     else:
                         logger.error(f"虚拟客服分配策略失败: {result['message']}")
 
@@ -631,19 +667,19 @@ class VirtualOrderTaskScheduler:
                     # 如果新策略出错，回退到原有方式
                     logger.error(f"虚拟客服分配策略出错: {e}，回退到原有方式")
                     new_tasks = service.generate_virtual_tasks_for_student(
-                        student_id, pool.student_name, recycled_amount
+                        student_id, pool.student_name, available_amount
                     )
 
                     # 保存新任务
                     for task in new_tasks:
                         db.add(task)
 
-                    # 更新补贴池：将回收价值加入剩余金额
-                    pool.remaining_amount += recycled_amount
+                    # 更新补贴池：减少剩余金额（不增加，因为这是在消耗补贴）
+                    pool.remaining_amount -= available_amount
                     pool.updated_at = datetime.now()
 
                     new_tasks_total_amount = sum(task.commission for task in new_tasks)
-                    logger.info(f"使用原有方式为学生 {pool.student_name} 重新生成了 {len(new_tasks)} 个任务，总金额: {new_tasks_total_amount}")
+                    logger.info(f"使用原有方式为学生 {pool.student_name} 重新生成了 {len(new_tasks)} 个任务，总金额: {new_tasks_total_amount}，剩余补贴: {pool.remaining_amount}")
 
         except Exception as e:
             logger.error(f"处理学生 {student_id} 的价值回收时出错: {str(e)}")

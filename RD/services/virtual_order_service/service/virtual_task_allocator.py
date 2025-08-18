@@ -6,11 +6,11 @@
 import redis
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime
+from typing import List, Dict, Any, Optional
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_, func
 from dataclasses import dataclass
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -52,7 +52,7 @@ class VirtualTaskAllocator:
         
         # 分配策略配置
         self.config = {
-            'max_tasks_per_service': 50,  # 每个虚拟客服最大任务数
+            # 移除虚拟客服最大任务数限制，虚拟客服可以接受无限任务
             'min_task_amount': Decimal('5'),  # 最小任务金额
             'max_task_amount': Decimal('25'),  # 最大任务金额
             'new_service_priority_boost': 100,  # 新增客服优先级提升
@@ -162,16 +162,13 @@ class VirtualTaskAllocator:
         if not services:
             return {}
         
-        # 过滤掉已达到最大任务数的客服
-        available_services = [
-            s for s in services 
-            if s.current_task_count < self.config['max_tasks_per_service']
-        ]
-        
+        # 虚拟客服没有最大任务数限制，所有激活的客服都可用
+        available_services = services
+
         if not available_services:
             raise BusinessException(
                 code=400,
-                message="所有虚拟客服都已达到最大任务数限制",
+                message="没有可用的虚拟客服",
                 data=None
             )
         
@@ -181,15 +178,16 @@ class VirtualTaskAllocator:
         # 计算权重：任务数越少权重越高，新增客服有额外权重
         total_weight = Decimal('0')
         for service in available_services:
-            # 基础权重：最大任务数 - 当前任务数 + 1
-            base_weight = self.config['max_tasks_per_service'] - service.current_task_count + 1
-            
+            # 基础权重：使用反比例计算，任务数越少权重越高
+            # 使用 100 作为基数，避免权重为0或负数
+            base_weight = max(1, 100 - service.current_task_count)
+
             # 新增客服权重加成
             if service.is_new:
                 weight = base_weight * Decimal('2')  # 新增客服权重翻倍
             else:
                 weight = base_weight
-            
+
             total_weight += weight
             allocation[service.user_id] = weight
         
@@ -253,18 +251,15 @@ class VirtualTaskAllocator:
                         error_message="无法计算任务金额分配"
                     )
 
-                # 获取可用的虚拟客服（过滤掉任务数过多的）
-                available_services = [
-                    s for s in services
-                    if s.current_task_count < self.config['max_tasks_per_service']
-                ]
+                # 虚拟客服没有最大任务数限制，所有激活的客服都可用
+                available_services = services
 
                 if not available_services:
                     return AllocationResult(
                         success=False,
                         allocated_tasks=[],
                         total_amount=Decimal('0'),
-                        error_message="所有虚拟客服都已达到最大任务数限制"
+                        error_message="没有可用的虚拟客服"
                     )
 
                 # 按优先级排序（任务数少的优先，新客服优先）
