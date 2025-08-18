@@ -22,7 +22,8 @@ services:
       - MYSQL_PORT=3306
       - MYSQL_USER=ai_sever
       - MYSQL_PASSWORD=Qq5201314
-      - MYSQL_DATABASE=gx_booking_db
+      - MYSQL_DATABASE=ai-task-management-system-server
+#      - MYSQL_DATABASE=gx_booking_db
       - REDIS_HOST=8.137.48.23
       - REDIS_PORT=6380
       - REDIS_DB=0
