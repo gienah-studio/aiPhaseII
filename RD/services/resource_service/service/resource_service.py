@@ -54,8 +54,10 @@ class ResourceService:
             garbled_mappings = {
                 # 厨房相关的乱码映射（已确认）
                 'σÄ¿µê┐': '厨房',  # 基于日志中观察到的实际乱码
-                # 客厅相关的乱码映射（新发现）
+                # 客厅相关的乱码映射（已确认）
                 'σ«óσÄà': '客厅',  # 基于新日志中观察到的客厅乱码
+                # 阳台相关的乱码映射（已确认）
+                'Θÿ│σÅ░': '阳台',  # 用户确认为阳台
             }
 
             # 检查文件名（去掉扩展名）是否在乱码映射中
@@ -76,6 +78,7 @@ class ResourceService:
             room_garbled_patterns = {
                 r'^σÄ¿µê┐(\d*)$': '厨房',  # 厨房的乱码模式
                 r'^σ«óσÄà(\d*)$': '客厅',  # 客厅的乱码模式
+                r'^Θÿ│σÅ░(\d*)$': '阳台',  # 阳台的乱码模式
             }
 
             for pattern, room_type in room_garbled_patterns.items():
@@ -110,6 +113,10 @@ class ResourceService:
                     safe_filename = f"厨房_{timestamp}{file_ext}"
                 elif 'σ«óσÄà' in filename:
                     safe_filename = f"客厅_{timestamp}{file_ext}"
+                elif 'Θÿ│σÅ░' in filename:
+                    safe_filename = f"阳台_{timestamp}{file_ext}"
+                elif 'Θÿ│σÅ░' in filename:
+                    safe_filename = f"卧室_{timestamp}{file_ext}"
                 else:
                     safe_filename = f"房间_{timestamp}{file_ext}"
 
