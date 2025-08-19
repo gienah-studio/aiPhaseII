@@ -82,6 +82,11 @@ class ConfigService:
             else:
                 config_value = str(value)
             
+            # 检查是否是虚拟任务生成配置的变更（从false到true）
+            old_value = None
+            if config and key == 'virtual_task_generation_enabled':
+                old_value = config.config_value.lower() in ('true', '1', 'yes', 'on')
+
             if config:
                 # 更新现有配置
                 config.config_value = config_value
@@ -97,8 +102,17 @@ class ConfigService:
                     description=description or f"配置项: {key}"
                 )
                 self.db.add(config)
-            
+
             self.db.commit()
+
+            # 如果虚拟任务生成配置从false变为true，触发补贴池任务生成
+            if (key == 'virtual_task_generation_enabled' and
+                config_type == 'boolean' and
+                old_value is False and
+                str(value).lower() == 'true'):
+                logger.info("检测到虚拟任务生成配置从禁用变为启用，开始处理未生成任务的补贴池...")
+                self._process_ungenerated_subsidy_pools()
+
             return True
             
         except Exception as e:
@@ -215,3 +229,72 @@ class ConfigService:
 
         except Exception as e:
             logger.error(f"初始化虚拟任务生成配置失败: {str(e)}")
+
+    def _process_ungenerated_subsidy_pools(self):
+        """
+        处理未生成任务的补贴池
+        仅处理有剩余补贴但从未生成过任何虚拟任务的补贴池
+        """
+        try:
+            from shared.models.virtual_order_pool import VirtualOrderPool
+            from shared.models.tasks import Tasks
+            from sqlalchemy import and_, exists
+
+            # 查找有剩余补贴但从未生成过任何虚拟任务的补贴池
+            ungenerated_pools = self.db.query(VirtualOrderPool).filter(
+                and_(
+                    VirtualOrderPool.is_deleted == False,
+                    VirtualOrderPool.remaining_amount > 0,
+                    # 关键条件：该学生从未生成过任何虚拟任务
+                    ~exists().where(
+                        and_(
+                            Tasks.is_virtual == True,
+                            Tasks.target_student_id == VirtualOrderPool.student_id
+                        )
+                    )
+                )
+            ).all()
+
+            if not ungenerated_pools:
+                logger.info("没有发现需要处理的未生成任务的补贴池")
+                return
+
+            logger.info(f"发现 {len(ungenerated_pools)} 个需要生成任务的补贴池")
+
+            # 导入虚拟订单服务
+            from .virtual_order_service import VirtualOrderService
+            service = VirtualOrderService(self.db)
+
+            processed_count = 0
+            total_generated_tasks = 0
+
+            for pool in ungenerated_pools:
+                try:
+                    logger.info(f"为学生 {pool.student_name}(ID:{pool.student_id}) 生成任务，剩余补贴: {pool.remaining_amount}")
+
+                    # 使用虚拟客服分配策略生成任务
+                    result = service.generate_virtual_tasks_with_service_allocation(
+                        pool.student_id, pool.student_name, pool.remaining_amount
+                    )
+
+                    if result['success']:
+                        task_count = len(result['tasks'])
+                        total_generated_tasks += task_count
+                        processed_count += 1
+
+                        logger.info(f"成功为学生 {pool.student_name} 生成了 {task_count} 个任务，总金额: {result['total_amount']}")
+                    else:
+                        logger.error(f"为学生 {pool.student_name} 生成任务失败: {result['message']}")
+
+                except Exception as e:
+                    logger.error(f"处理学生 {pool.student_name} 的补贴池时出错: {str(e)}")
+                    continue
+
+            # 提交所有更改
+            self.db.commit()
+
+            logger.info(f"补贴池任务生成完成: 处理了 {processed_count} 个补贴池，共生成 {total_generated_tasks} 个任务")
+
+        except Exception as e:
+            logger.error(f"处理未生成任务的补贴池失败: {str(e)}")
+            self.db.rollback()
