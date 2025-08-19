@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
+import logging
 
 from shared.models.bonus_pool import BonusPool
 from shared.models.student_daily_achievement import StudentDailyAchievement
@@ -12,7 +13,8 @@ from shared.models.userinfo import UserInfo
 from shared.models.agents import Agents
 from shared.exceptions import BusinessException
 from .virtual_order_service import VirtualOrderService
-import math
+
+logger = logging.getLogger(__name__)
 
 class BonusPoolService:
     """奖金池服务类"""
@@ -61,11 +63,11 @@ class BonusPoolService:
             raise BusinessException(code=404, msg="学生不存在")
         
         # 计算当日完成的虚拟任务金额（面值）
-        # 只统计已完成的虚拟任务
+        # 只统计已完成的虚拟任务（与API收入统计保持一致）
         completed_face_value = self.db.query(func.sum(Tasks.commission)).filter(
             Tasks.target_student_id == student_id,
             Tasks.is_virtual == True,
-            Tasks.payment_status.in_(['3', '4']),  # 可结算或已结算
+            Tasks.status == '4',  # 已完成
             func.date(Tasks.created_at) == target_date
         ).scalar() or Decimal('0')
         
@@ -184,7 +186,81 @@ class BonusPoolService:
         ).first()
         
         return achievement is not None
-    
+
+    def collect_unachieved_students_subsidy(self, target_date: date = None) -> Dict[str, Any]:
+        """
+        收集没达标学员的剩余补贴（基于补贴池实际剩余金额）
+
+        Args:
+            target_date: 目标日期，默认为昨天
+
+        Returns:
+            Dict: 剩余补贴统计
+        """
+        if target_date is None:
+            target_date = date.today() - timedelta(days=1)
+
+        from shared.models.virtual_order_pool import VirtualOrderPool
+
+        # 查询所有学员的达标记录
+        achievements = self.db.query(StudentDailyAchievement).filter(
+            StudentDailyAchievement.achievement_date == target_date
+        ).all()
+
+        total_remaining_subsidy = Decimal('0')
+        unachieved_students = []
+        achieved_students = []
+
+        for achievement in achievements:
+            # 查询该学员的补贴池信息
+            student_pool = self.db.query(VirtualOrderPool).filter(
+                VirtualOrderPool.student_id == achievement.student_id,
+                VirtualOrderPool.is_deleted == False,
+                VirtualOrderPool.status == 'active'
+            ).first()
+
+            if achievement.is_achieved:
+                # 达标学员：剩余补贴为0（不进入奖金池）
+                pool_remaining = float(student_pool.remaining_amount) if student_pool else 0.0
+                achieved_students.append({
+                    'student_id': achievement.student_id,
+                    'student_name': achievement.student_name,
+                    'consumed_subsidy': float(achievement.completed_amount),
+                    'pool_remaining_amount': pool_remaining,
+                    'remaining_subsidy': 0.0  # 达标学员不贡献奖金池
+                })
+            else:
+                # 没达标学员：使用补贴池的剩余金额
+                if student_pool and student_pool.remaining_amount > 0:
+                    pool_remaining = student_pool.remaining_amount
+                    total_remaining_subsidy += pool_remaining
+                    unachieved_students.append({
+                        'student_id': achievement.student_id,
+                        'student_name': achievement.student_name,
+                        'consumed_subsidy': float(achievement.completed_amount),
+                        'pool_remaining_amount': float(pool_remaining),
+                        'remaining_subsidy': float(pool_remaining)  # 使用补贴池剩余金额
+                    })
+                else:
+                    # 没有补贴池或剩余金额为0
+                    unachieved_students.append({
+                        'student_id': achievement.student_id,
+                        'student_name': achievement.student_name,
+                        'consumed_subsidy': float(achievement.completed_amount),
+                        'pool_remaining_amount': 0.0,
+                        'remaining_subsidy': 0.0
+                    })
+
+        return {
+            'target_date': target_date.isoformat(),
+            'total_students': len(achievements),
+            'achieved_students_count': len(achieved_students),
+            'unachieved_students_count': len(unachieved_students),
+            'total_remaining_subsidy': float(total_remaining_subsidy),
+            'achieved_students': achieved_students,
+            'unachieved_students': unachieved_students
+        }
+
     def collect_expired_virtual_tasks(self, target_date: date = None) -> Dict[str, Any]:
         """
         收集过期的虚拟任务
@@ -249,8 +325,11 @@ class BonusPoolService:
         if pool_date is None:
             pool_date = date.today()
         
-        # 收集昨天的过期任务
+        # 收集昨天没达标学员的剩余补贴
         yesterday = pool_date - timedelta(days=1)
+        subsidy_data = self.collect_unachieved_students_subsidy(yesterday)
+
+        # 同时收集过期任务（保留原有逻辑）
         expired_data = self.collect_expired_virtual_tasks(yesterday)
         
         # 查找或创建今日奖金池
@@ -258,22 +337,27 @@ class BonusPoolService:
             BonusPool.pool_date == pool_date
         ).first()
         
+        # 计算奖金池总金额：剩余补贴 + 过期任务金额
+        total_subsidy_amount = Decimal(str(subsidy_data['total_remaining_subsidy']))
+        total_expired_amount = Decimal(str(expired_data['total_expired_amount']))
+        total_pool_amount = total_subsidy_amount + total_expired_amount
+
         if bonus_pool:
             # 更新现有奖金池
-            bonus_pool.new_expired_amount += Decimal(str(expired_data['expired_normal_amount']))
-            bonus_pool.carry_forward_amount += Decimal(str(expired_data['expired_bonus_amount']))
-            bonus_pool.total_amount = bonus_pool.new_expired_amount + bonus_pool.carry_forward_amount
+            bonus_pool.new_expired_amount = total_subsidy_amount  # 使用剩余补贴作为新增金额
+            bonus_pool.carry_forward_amount += Decimal(str(expired_data['expired_bonus_amount']))  # 过期奖金池任务结转
+            bonus_pool.total_amount = bonus_pool.new_expired_amount + bonus_pool.carry_forward_amount + Decimal(str(expired_data['expired_normal_amount']))
             bonus_pool.remaining_amount = bonus_pool.total_amount - bonus_pool.generated_amount
         else:
             # 创建新的奖金池
             bonus_pool = BonusPool(
                 pool_date=pool_date,
-                carry_forward_amount=Decimal(str(expired_data['expired_bonus_amount'])),
-                new_expired_amount=Decimal(str(expired_data['expired_normal_amount'])),
-                total_amount=Decimal(str(expired_data['total_expired_amount'])),
+                carry_forward_amount=Decimal(str(expired_data['expired_bonus_amount'])),  # 过期奖金池任务
+                new_expired_amount=total_subsidy_amount,  # 没达标学员的剩余补贴
+                total_amount=total_pool_amount,  # 总金额 = 剩余补贴 + 过期任务
                 generated_amount=Decimal('0'),
                 completed_amount=Decimal('0'),
-                remaining_amount=Decimal(str(expired_data['total_expired_amount']))
+                remaining_amount=total_pool_amount
             )
             self.db.add(bonus_pool)
         
@@ -327,64 +411,110 @@ class BonusPoolService:
                 'generated_tasks': 0
             }
         
-        # 计算达标学生的平均返佣比例
-        total_rebate_rate = Decimal('0')
-        valid_students = 0
+        # 奖金池任务面值直接等于奖金池金额，不需要考虑返佣比例
+        total_face_value = bonus_pool.remaining_amount
+
+        logger.info(f"奖金池任务生成：奖金池金额={bonus_pool.remaining_amount}，任务面值={total_face_value}")
         
-        for achievement in qualified_students:
-            rebate_rate = self.virtual_order_service.get_student_rebate_rate(achievement.student_id)
-            if rebate_rate > 0:
-                total_rebate_rate += rebate_rate
-                valid_students += 1
-        
-        # 使用平均返佣比例，如果没有有效学生则使用默认值0.6
-        avg_rebate_rate = total_rebate_rate / valid_students if valid_students > 0 else Decimal('0.6')
-        
-        # 计算任务总面值：奖金池金额 / 平均返佣比例，向上取整
-        total_face_value = bonus_pool.remaining_amount / avg_rebate_rate
-        total_face_value = Decimal(math.ceil(float(total_face_value) * 100) / 100)
-        
-        # 使用虚拟任务生成逻辑计算任务分配（基于面值）
-        task_amounts = self.virtual_order_service.calculate_task_amounts(total_face_value)
-        
-        # 生成任务
-        generated_tasks = []
-        now = datetime.now()
-        
-        for amount in task_amounts:
-            # 生成随机任务内容
-            task_content = self.virtual_order_service.generate_random_task_content()
-            
-            task = Tasks(
-                summary=task_content['summary'],
-                requirement=task_content['requirement'],
-                reference_images='',
-                source='奖金池',
-                order_number=self.virtual_order_service.generate_order_number(),
-                commission=amount,
-                commission_unit='人民币',
-                end_date=now + timedelta(hours=3),  # 3小时后过期
-                delivery_date=now + timedelta(hours=3),
-                status='0',  # 待接取
-                task_style='其他',
-                task_type='其他',
-                created_at=now,
-                updated_at=now,
-                orders_number=1,
-                order_received_number=0,
-                founder='奖金池系统',
-                founder_id=0,
-                payment_status='0',
-                task_level='D',
-                is_virtual=True,
-                is_bonus_pool=True,  # 标记为奖金池任务
-                bonus_pool_date=pool_date,
-                target_student_id=None,  # 不限定特定学生
-                is_renew='0'
+        # 使用新的虚拟客服分配策略生成任务
+        try:
+            # 使用虚拟客服分配器分配任务
+            # 注意：传递一个虚拟的student_id (0)，后面会将target_student_id设置为None
+            allocation_result = self.virtual_order_service.allocator.allocate_tasks_to_services(
+                total_face_value,
+                student_id=None,  # 传递虚拟ID，避免None导致的问题
+                student_name="奖金池任务"
             )
-            
-            self.db.add(task)
-            generated_tasks.append(task)
+
+            if not allocation_result.success:
+                raise Exception(f"虚拟客服分配失败: {allocation_result.error_message}")
+
+            # 更新任务属性为奖金池任务
+            generated_tasks = []
+            now = datetime.now()
+
+            for allocated_task in allocation_result.allocated_tasks:
+                # 获取已创建的任务对象
+                task = self.db.query(Tasks).filter(Tasks.id == allocated_task['id']).first()
+                if task:
+                    # 更新任务属性为奖金池任务
+                    task.source = '奖金池'
+                    task.target_student_id = None  # 奖金池任务不指定特定学生
+                    task.end_date = now + timedelta(hours=3)  # 3小时后过期
+                    task.delivery_date = now + timedelta(hours=3)
+                    task.is_bonus_pool = True  # 标记为奖金池任务
+                    task.bonus_pool_date = pool_date
+                    task.updated_at = now
+
+                    generated_tasks.append(task)
+
+        except Exception as e:
+            logger.error(f"使用虚拟客服分配策略生成奖金池任务失败: {e}")
+            # 回退到原有方式（但仍尝试分配虚拟客服）
+            task_amounts = self.virtual_order_service.calculate_task_amounts(total_face_value)
+
+            generated_tasks = []
+            now = datetime.now()
+
+            # 尝试获取活跃的虚拟客服用于轮转分配
+            active_services = []
+            try:
+                # 通过虚拟订单服务的分配器获取活跃虚拟客服
+                active_services = self.virtual_order_service.allocator.get_active_virtual_services()
+                logger.info(f"回退模式：获取到 {len(active_services)} 个活跃虚拟客服")
+            except Exception as service_error:
+                logger.warning(f"回退模式：获取虚拟客服失败: {service_error}")
+
+            for i, amount in enumerate(task_amounts):
+                # 生成随机任务内容
+                task_content = self.virtual_order_service.generate_random_task_content()
+
+                # 确定任务创建者（虚拟客服或系统）
+                if active_services:
+                    # 轮转分配虚拟客服
+                    selected_service = active_services[i % len(active_services)]
+                    founder_id = selected_service.user_id
+                    founder_name = selected_service.service_name
+                    logger.debug(f"回退模式：任务 {i+1} 分配给虚拟客服 {founder_name} (ID: {founder_id})")
+                else:
+                    # 没有可用虚拟客服，使用系统创建
+                    founder_id = 0
+                    founder_name = '奖金池系统'
+                    logger.debug(f"回退模式：任务 {i+1} 由系统创建（无可用虚拟客服）")
+
+                task = Tasks(
+                    summary=task_content['summary'],
+                    requirement=task_content['requirement'],
+                    reference_images='',
+                    source='奖金池',
+                    order_number=self.virtual_order_service.generate_order_number(),
+                    commission=amount,
+                    commission_unit='人民币',
+                    end_date=now + timedelta(hours=3),  # 3小时后过期
+                    delivery_date=now + timedelta(hours=3),
+                    status='0',  # 待接取
+                    task_style='其他',
+                    task_type='其他',
+                    created_at=now,
+                    updated_at=now,
+                    orders_number=1,
+                    order_received_number=0,
+                    founder=founder_name,
+                    founder_id=founder_id,
+                    payment_status='0',
+                    task_level='D',
+                    is_virtual=True,
+                    is_bonus_pool=True,  # 标记为奖金池任务
+                    bonus_pool_date=pool_date,
+                    target_student_id=None,  # 不限定特定学生
+                    is_renew='0',
+                    # 虚拟客服相关字段（保持原有逻辑）
+                    virtual_service_id=None,
+                    virtual_service_name=None
+                )
+
+                self.db.add(task)
+                generated_tasks.append(task)
         
         # 更新奖金池状态
         bonus_pool.generated_amount += bonus_pool.remaining_amount

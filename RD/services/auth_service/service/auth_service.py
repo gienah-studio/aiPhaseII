@@ -527,14 +527,12 @@ class AuthService:
                         commission = Decimal(str(task.commission))
                         original_commission += commission
 
-                        # 区分虚拟任务和普通任务的处理逻辑
+                        # 虚拟任务和普通任务都按代理返佣比例计算实际收入
+                        actual_commission = commission * agent_rebate_decimal
+
                         if hasattr(task, 'is_virtual') and task.is_virtual:
-                            # 虚拟任务：学员直接获得全部佣金，不需要代理返佣
-                            actual_commission = commission
-                            print(f"[DEBUG] 虚拟任务 {task.id}: 佣金 {commission}, 实际收入 {actual_commission} (无返佣)")
+                            print(f"[DEBUG] 虚拟任务 {task.id}: 佣金 {commission}, 返佣比例 {agent_rebate_decimal}, 实际收入 {actual_commission}")
                         else:
-                            # 普通任务：按代理返佣比例计算实际收入
-                            actual_commission = commission * agent_rebate_decimal
                             print(f"[DEBUG] 普通任务 {task.id}: 佣金 {commission}, 返佣比例 {agent_rebate_decimal}, 实际收入 {actual_commission}")
 
                         total_commission += actual_commission
@@ -564,8 +562,8 @@ class AuthService:
                     if is_student_task and task.commission:
                         commission = Decimal(str(task.commission))
                         if hasattr(task, 'is_virtual') and task.is_virtual:
-                            # 虚拟任务：直接获得全部佣金
-                            virtual_commission += commission
+                            # 虚拟任务：按返佣比例计算
+                            virtual_commission += commission * agent_rebate_decimal
                             virtual_orders += 1
                         else:
                             # 普通任务：按返佣比例计算
@@ -578,7 +576,7 @@ class AuthService:
                     "student_name": student.name or "",
                     "yesterday_income": str(original_commission),  # 原始佣金总额
                     "yesterday_completed_orders": completed_orders,
-                    "commission_rate": agent_rebate if normal_commission > 0 else "N/A",  # 只有普通任务才显示返佣比例
+                    "commission_rate": agent_rebate if completed_orders > 0 else "N/A",  # 有任务时显示返佣比例
                     "actual_income": str(total_commission),  # 实际到手金额
                     "phone_number": student.phone_number or "",
                     "virtual_orders": virtual_orders,  # 虚拟任务数量

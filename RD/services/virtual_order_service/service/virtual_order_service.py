@@ -1585,6 +1585,21 @@ class VirtualOrderService:
             # 删除未完成的虚拟任务
             if pending_tasks:
                 for task in pending_tasks:
+                    # 先清理图片引用，避免外键约束错误
+                    try:
+                        from shared.models.resource_images import ResourceImages
+                        # 将引用该任务的图片的used_in_task_id设为NULL
+                        self.db.query(ResourceImages).filter(
+                            ResourceImages.used_in_task_id == task.id
+                        ).update({
+                            'used_in_task_id': None,
+                            'updated_at': datetime.now()
+                        })
+                        self.db.flush()  # 确保更新生效
+                    except Exception as img_error:
+                        logger.warning(f"清理任务 {task.id} 的图片引用失败: {str(img_error)}")
+                    
+                    # 删除任务
                     self.db.delete(task)
 
             # 执行补贴池软删除
