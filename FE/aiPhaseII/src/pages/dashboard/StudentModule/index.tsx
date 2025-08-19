@@ -455,39 +455,39 @@ const StudentModule: React.FC = () => {
         return time ? new Date(time).toLocaleString() : '-';
       },
     },
-    {
-      title: '操作',
-      key: 'action',
-      width: 180,
-      fixed: 'right' as const,
-      render: (_: any, record: StudentPoolItem) => {
-        const remainingAmount = safeNumber(getFieldValue(record, 'remainingAmount', 'remaining_amount'));
-        const studentId = getFieldValue(record, 'studentId', 'student_id');
-        const poolId = record.id;
-
-        return (
-          <Space size="small">
-            <Popconfirm
-              title="确定要删除这个学生的补贴池吗？"
-              description="删除后该学生的补贴记录将被软删除，如有未完成任务将无法删除。"
-              onConfirm={() => handleDeletePool(Number(poolId))}
-              okText="确定"
-              cancelText="取消"
-              okType="danger"
-            >
-              <Button
-                type="link"
-                size="small"
-                icon={<DeleteOutlined />}
-                danger
-              >
-                删除
-              </Button>
-            </Popconfirm>
-          </Space>
-        );
-      },
-    },
+    // {
+    //   title: '操作',
+    //   key: 'action',
+    //   width: 180,
+    //   fixed: 'right' as const,
+    //   render: (_: any, record: StudentPoolItem) => {
+    //     const remainingAmount = safeNumber(getFieldValue(record, 'remainingAmount', 'remaining_amount'));
+    //     const studentId = getFieldValue(record, 'studentId', 'student_id');
+    //     const poolId = record.id;
+    //
+    //     return (
+    //       <Space size="small">
+    //         <Popconfirm
+    //           title="确定要删除这个学生的补贴池吗？"
+    //           description="删除后该学生的补贴记录将被软删除，如有未完成任务将无法删除。"
+    //           onConfirm={() => handleDeletePool(Number(poolId))}
+    //           okText="确定"
+    //           cancelText="取消"
+    //           okType="danger"
+    //         >
+    //           <Button
+    //             type="link"
+    //             size="small"
+    //             icon={<DeleteOutlined />}
+    //             danger
+    //           >
+    //             删除
+    //           </Button>
+    //         </Popconfirm>
+    //       </Space>
+    //     );
+    //   },
+    // },
   ];
 
   return (

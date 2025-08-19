@@ -213,7 +213,8 @@ class VirtualTaskAllocator:
     def allocate_tasks_to_services(self,
                                  total_amount: Decimal,
                                  student_id: int,
-                                 student_name: str) -> AllocationResult:
+                                 student_name: str,
+                                 on_demand: bool = False) -> AllocationResult:
         """
         为虚拟客服分配任务（修复版：先计算标准任务金额，再分配给客服）
 
@@ -221,6 +222,7 @@ class VirtualTaskAllocator:
             total_amount: 总任务金额
             student_id: 学生ID
             student_name: 学生姓名
+            on_demand: 是否按需生成（True=生成1-2个任务，False=全部生成）
 
         Returns:
             AllocationResult: 分配结果
@@ -238,10 +240,16 @@ class VirtualTaskAllocator:
                         error_message="没有可用的虚拟客服"
                     )
 
-                # 先计算标准任务金额列表（修复：不再按客服分配金额）
+                # 根据模式计算任务金额列表
                 from .virtual_order_service import VirtualOrderService
                 service = VirtualOrderService(self.db)
-                task_amounts = service.calculate_task_amounts(total_amount)
+
+                if on_demand:
+                    # 按需生成：只生成1-2个任务
+                    task_amounts = service.calculate_on_demand_task_amounts(total_amount)
+                else:
+                    # 传统模式：生成所有任务
+                    task_amounts = service.calculate_task_amounts(total_amount)
 
                 if not task_amounts:
                     return AllocationResult(
@@ -486,11 +494,15 @@ class VirtualTaskAllocator:
             futures = []
             
             for request in allocation_requests:
+                # 检查是否为按需生成
+                on_demand = request.get('on_demand', False)
+
                 future = executor.submit(
                     self.allocate_tasks_to_services,
                     request['total_amount'],
                     request['student_id'],
-                    request['student_name']
+                    request['student_name'],
+                    on_demand
                 )
                 futures.append(future)
             

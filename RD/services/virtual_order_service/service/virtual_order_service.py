@@ -616,6 +616,89 @@ class VirtualOrderService:
                 remaining -= selected_amount
 
         return amounts
+
+    def calculate_on_demand_task_amounts(self, total_amount: Decimal) -> List[Decimal]:
+        """
+        按需生成任务金额分配（生成1-2个任务）
+
+        Args:
+            total_amount: 可用金额
+
+        Returns:
+            List[Decimal]: 任务金额列表（1-2个任务）
+        """
+        amounts = []
+
+        # 如果金额为0，不生成任务
+        if total_amount <= 0:
+            return []
+
+        # 如果金额小于5元，生成等额任务
+        if total_amount < Decimal('5'):
+            return [total_amount]
+
+        # 如果金额小于10元，按8元规则处理
+        if total_amount < Decimal('10'):
+            if total_amount >= Decimal('8'):
+                return [Decimal('10')]
+            else:
+                return [Decimal('5')]
+
+        # 固定的金额选项：5, 10, 15, 20, 25
+        available_amounts = [Decimal('5'), Decimal('10'), Decimal('15'), Decimal('20'), Decimal('25')]
+
+        # 筛选不超过总金额的选项
+        possible_amounts = [amount for amount in available_amounts if amount <= total_amount]
+
+        if not possible_amounts:
+            # 如果没有合适的金额选项，按规则处理
+            if total_amount >= Decimal('8'):
+                return [Decimal('10')]
+            else:
+                return [Decimal('5')]
+
+        # 随机决定生成1个还是2个任务
+        task_count = random.choice([1, 2])
+
+        if task_count == 1:
+            # 生成1个任务
+            selected_amount = random.choice(possible_amounts)
+            amounts.append(selected_amount)
+        else:
+            # 生成2个任务
+            first_amount = random.choice(possible_amounts)
+            amounts.append(first_amount)
+
+            # 计算剩余金额
+            remaining = total_amount - first_amount
+
+            # 为第二个任务选择金额
+            if remaining <= Decimal('0'):
+                # 剩余金额不足，只生成一个任务
+                pass
+            elif remaining < Decimal('5'):
+                # 剩余金额小于5元，生成等额任务
+                amounts.append(remaining)
+            elif remaining < Decimal('10'):
+                # 剩余金额小于10元，按8元规则处理
+                if remaining >= Decimal('8'):
+                    amounts.append(Decimal('10'))
+                else:
+                    amounts.append(Decimal('5'))
+            else:
+                # 从可用金额中选择不超过剩余金额的选项
+                second_possible_amounts = [amount for amount in available_amounts if amount <= remaining]
+                if second_possible_amounts:
+                    second_amount = random.choice(second_possible_amounts)
+                    amounts.append(second_amount)
+                else:
+                    # 如果没有合适的选项，按规则处理
+                    if remaining >= Decimal('8'):
+                        amounts.append(Decimal('10'))
+                    else:
+                        amounts.append(Decimal('5'))
+
+        return amounts
     
     def create_virtual_task(self, student_id: int, student_name: str, amount: Decimal) -> Optional[Tasks]:
         """
@@ -759,24 +842,29 @@ class VirtualOrderService:
             return Decimal('0.6')  # 解析失败时使用默认值
 
     def generate_virtual_tasks_for_student(self, student_id: int, student_name: str,
-                                         subsidy_amount: Decimal) -> List[Tasks]:
+                                         subsidy_amount: Decimal, on_demand: bool = False) -> List[Tasks]:
         """
-        为学生生成虚拟任务（新逻辑：直接按补贴金额生成）
+        为学生生成虚拟任务
 
         Args:
             student_id: 学生ID
             student_name: 学生姓名
             subsidy_amount: 可用补贴金额
+            on_demand: 是否按需生成（True=生成1-2个任务，False=全部生成）
 
         Returns:
             List[Tasks]: 生成的任务列表
         """
-        # 新逻辑：直接按补贴金额生成任务，不再除以返佣比例
         # 任务面值 = 补贴金额
         total_face_value = subsidy_amount
 
-        # 计算任务金额分配（基于补贴金额）
-        task_amounts = self.calculate_task_amounts(total_face_value)
+        # 根据模式选择不同的金额分配策略
+        if on_demand:
+            # 按需生成：只生成1-2个任务
+            task_amounts = self.calculate_on_demand_task_amounts(total_face_value)
+        else:
+            # 传统模式：生成所有任务
+            task_amounts = self.calculate_task_amounts(total_face_value)
 
         # 创建任务（如果图片不足则停止生成）
         tasks = []
@@ -788,6 +876,21 @@ class VirtualOrderService:
             tasks.append(task)
 
         return tasks
+
+    def generate_on_demand_virtual_tasks_for_student(self, student_id: int, student_name: str,
+                                                   available_amount: Decimal) -> List[Tasks]:
+        """
+        按需为学生生成虚拟任务（生成1-2个任务）
+
+        Args:
+            student_id: 学生ID
+            student_name: 学生姓名
+            available_amount: 可用金额
+
+        Returns:
+            List[Tasks]: 生成的任务列表
+        """
+        return self.generate_virtual_tasks_for_student(student_id, student_name, available_amount, on_demand=True)
 
     def _generate_fallback_task_content(self) -> Dict[str, str]:
         """
@@ -848,44 +951,115 @@ class VirtualOrderService:
                 ).first()
 
                 if existing_pool:
-                    # 更新现有补贴池（累加补贴金额，保持原有逻辑）
-                    existing_pool.total_subsidy += subsidy_amount  # 累加新的补贴金额
-                    existing_pool.remaining_amount += subsidy_amount  # 累加剩余金额
-                    existing_pool.allocated_amount += subsidy_amount  # 累加已分配金额
-                    existing_pool.import_batch = import_batch
-                    existing_pool.updated_at = datetime.now()
-                    existing_pool.last_allocation_at = datetime.now()
+                    # 初始化任务生成标记
+                    should_generate_tasks = True
+
+                    # 检查是否为0元补贴（用于删除学生）
+                    if subsidy_amount == Decimal('0'):
+                        # 0元补贴：执行硬删除，彻底清理该学生的补贴池
+                        self.db.delete(existing_pool)
+                        logger.info(f"学生 {student_name} 导入0元补贴，已执行硬删除")
+                        pool = None  # 标记为已删除，后续不生成任务
+                        should_generate_tasks = False
+                    elif existing_pool.total_subsidy == subsidy_amount:
+                        # 相同金额：只更新导入批次，保持数据完整性，不清理任务，不生成新任务
+                        existing_pool.import_batch = import_batch
+                        existing_pool.updated_at = datetime.now()
+                        logger.info(f"学生 {student_name} 重复导入相同金额 {subsidy_amount}，仅更新导入批次，保持数据完整性")
+                        pool = existing_pool  # 使用现有补贴池
+                        should_generate_tasks = False  # 标记不生成新任务
+                    else:
+                        # 不同金额：清理旧任务，更新现有补贴池（以最新补贴金额为准，重置数据）
+                        # 清理该学生之前的未完成虚拟任务（避免重复任务）
+                        pending_tasks = self.db.query(Tasks).filter(
+                            and_(
+                                Tasks.is_virtual.is_(True),
+                                Tasks.target_student_id == student_info.roleId,
+                                Tasks.status.in_(['0'])  # 只删除待接取的任务
+                            )
+                        ).all()
+
+                        for task in pending_tasks:
+                            # 清理图片引用，避免外键约束错误
+                            try:
+                                from shared.models.resource_images import ResourceImages
+                                self.db.query(ResourceImages).filter(
+                                    ResourceImages.used_in_task_id == task.id
+                                ).update({
+                                    'used_in_task_id': None,
+                                    'updated_at': datetime.now()
+                                })
+                                self.db.flush()
+                            except Exception as img_error:
+                                logger.warning(f"清理任务 {task.id} 的图片引用失败: {str(img_error)}")
+
+                            self.db.delete(task)
+
+                        existing_pool.total_subsidy = subsidy_amount  # 使用最新的补贴金额
+                        existing_pool.remaining_amount = subsidy_amount  # 重置剩余金额为最新补贴金额
+                        existing_pool.allocated_amount = subsidy_amount  # 重置已分配金额为最新补贴金额
+                        existing_pool.completed_amount = Decimal('0')  # 重置已完成金额
+                        existing_pool.consumed_subsidy = Decimal('0')  # 重置实际消耗补贴
+                        existing_pool.import_batch = import_batch
+                        existing_pool.updated_at = datetime.now()
+                        existing_pool.last_allocation_at = datetime.now()
+                        logger.info(f"学生 {student_name} 导入新金额 {subsidy_amount}，已重置补贴池数据")
+                        pool = existing_pool  # 使用更新后的补贴池
+                        should_generate_tasks = True  # 需要生成新任务
                 else:
-                    # 创建新的补贴池（每日补贴）
-                    pool = VirtualOrderPool(
-                        student_id=student_info.roleId,
-                        student_name=student_name,
-                        total_subsidy=subsidy_amount,  # 每日补贴额度
-                        remaining_amount=subsidy_amount,  # 初始剩余等于每日额度
-                        allocated_amount=subsidy_amount,  # 已分配等于每日额度
-                        completed_amount=Decimal('0'),  # 当日完成初始为0
-                        status='active',
-                        import_batch=import_batch,
-                        created_at=datetime.now(),
-                        updated_at=datetime.now(),
-                        last_allocation_at=datetime.now()
+                    # 检查是否为0元补贴
+                    if subsidy_amount == Decimal('0'):
+                        # 新学生导入0元补贴：不创建补贴池，直接跳过后续处理
+                        logger.info(f"新学生 {student_name} 导入0元补贴，跳过创建补贴池")
+                        total_students += 1  # 只统计学生数量
+                        continue
+                    else:
+                        # 创建新的补贴池（每日补贴）
+                        pool = VirtualOrderPool(
+                            student_id=student_info.roleId,
+                            student_name=student_name,
+                            total_subsidy=subsidy_amount,  # 每日补贴额度
+                            remaining_amount=subsidy_amount,  # 初始剩余等于每日额度
+                            allocated_amount=subsidy_amount,  # 已分配等于每日额度
+                            completed_amount=Decimal('0'),  # 当日完成初始为0
+                            status='active',
+                            import_batch=import_batch,
+                            created_at=datetime.now(),
+                            updated_at=datetime.now(),
+                            last_allocation_at=datetime.now()
+                        )
+                        self.db.add(pool)
+                        should_generate_tasks = True  # 新学生需要生成任务
+
+                # 只有需要生成任务且有有效补贴池才生成虚拟任务和统计
+                if subsidy_amount > Decimal('0') and pool is not None and should_generate_tasks:
+                    # 按需生成虚拟任务（只生成1-2个任务）
+                    tasks = self.generate_on_demand_virtual_tasks_for_student(
+                        student_info.roleId, student_name, subsidy_amount
                     )
-                    self.db.add(pool)
 
-                # 生成虚拟任务
-                tasks = self.generate_virtual_tasks_for_student(
-                    student_info.roleId, student_name, subsidy_amount
-                )
+                    # 保存任务到数据库
+                    for task in tasks:
+                        self.db.add(task)
 
-                # 保存任务到数据库
-                for task in tasks:
-                    self.db.add(task)
+                    # 更新补贴池：扣减已生成任务的金额
+                    generated_amount = sum(task.commission for task in tasks)
+                    pool.remaining_amount = subsidy_amount - generated_amount
+                    pool.allocated_amount = subsidy_amount  # 已分配等于总补贴
 
-                # 已分配金额和剩余金额已经在前面设置好了，无需重复设置
+                    logger.info(f"学生 {student_name} 按需生成了 {len(tasks)} 个任务，总金额: {generated_amount}，剩余: {pool.remaining_amount}")
 
-                total_students += 1
-                total_subsidy += subsidy_amount
-                total_generated_tasks += len(tasks)
+                    total_students += 1
+                    total_subsidy += subsidy_amount
+                    total_generated_tasks += len(tasks)
+                elif subsidy_amount > Decimal('0') and pool is not None and not should_generate_tasks:
+                    # 相同金额重复导入：不生成新任务，但统计学生和补贴
+                    total_students += 1
+                    total_subsidy += subsidy_amount
+                    logger.info(f"学生 {student_name} 重复导入相同金额，跳过任务生成")
+                else:
+                    # 0元补贴或无有效补贴池的情况，只统计学生数量
+                    total_students += 1
 
             # 提交事务
             self.db.commit()
@@ -2634,10 +2808,11 @@ class VirtualOrderService:
 
     # ================ 新增：基于虚拟客服的任务分配方法 ================
     
-    def generate_virtual_tasks_with_service_allocation(self, 
-                                                     student_id: int, 
-                                                     student_name: str, 
-                                                     subsidy_amount: Decimal) -> Dict[str, Any]:
+    def generate_virtual_tasks_with_service_allocation(self,
+                                                     student_id: int,
+                                                     student_name: str,
+                                                     subsidy_amount: Decimal,
+                                                     on_demand: bool = False) -> Dict[str, Any]:
         """
         使用新的虚拟客服分配策略生成虚拟任务
         
@@ -2656,7 +2831,7 @@ class VirtualOrderService:
             
             # 使用新的分配策略
             allocation_result = self.allocator.allocate_tasks_to_services(
-                total_face_value, student_id, student_name
+                total_face_value, student_id, student_name, on_demand
             )
             
             if allocation_result.success:
@@ -2721,47 +2896,103 @@ class VirtualOrderService:
                 if not student_info:
                     continue
 
-                # 检查是否已存在该学生的补贴池
+                # 检查是否已存在该学生的补贴池（只查询未删除的记录）
                 existing_pool = self.db.query(VirtualOrderPool).filter(
                     VirtualOrderPool.student_id == student_info.roleId,
                     VirtualOrderPool.is_deleted == False
                 ).first()
 
-                if existing_pool:
-                    # 更新现有补贴池
-                    existing_pool.total_subsidy += subsidy_amount
-                    existing_pool.remaining_amount += subsidy_amount
-                    existing_pool.allocated_amount += subsidy_amount
-                    existing_pool.import_batch = import_batch
-                    existing_pool.updated_at = datetime.now()
-                    existing_pool.last_allocation_at = datetime.now()
-                else:
-                    # 创建新的补贴池
-                    pool = VirtualOrderPool(
-                        student_id=student_info.roleId,
-                        student_name=student_name,
-                        total_subsidy=subsidy_amount,
-                        remaining_amount=subsidy_amount,
-                        allocated_amount=subsidy_amount,
-                        completed_amount=Decimal('0'),
-                        status='active',
-                        import_batch=import_batch,
-                        created_at=datetime.now(),
-                        updated_at=datetime.now(),
-                        last_allocation_at=datetime.now()
-                    )
-                    self.db.add(pool)
+                # 初始化任务生成标记
+                should_generate_tasks = True
 
-                # 准备分配请求
-                if use_service_allocation:
+                if existing_pool:
+                    # 检查是否为0元补贴（用于删除学生）
+                    if subsidy_amount == Decimal('0'):
+                        # 0元补贴：执行硬删除，彻底清理该学生的补贴池
+                        self.db.delete(existing_pool)
+                        logger.info(f"学生 {student_name} 导入0元补贴，已执行硬删除")
+                        should_generate_tasks = False
+                    elif existing_pool.total_subsidy == subsidy_amount:
+                        # 相同金额：只更新导入批次，保持数据完整性，不清理任务，不生成新任务
+                        existing_pool.import_batch = import_batch
+                        existing_pool.updated_at = datetime.now()
+                        logger.info(f"学生 {student_name} 重复导入相同金额 {subsidy_amount}，仅更新导入批次，保持数据完整性")
+                        should_generate_tasks = False
+                    else:
+                        # 不同金额：清理旧任务，更新现有补贴池（以最新补贴金额为准，重置数据）
+                        # 清理该学生之前的未完成虚拟任务（避免重复任务）
+                        pending_tasks = self.db.query(Tasks).filter(
+                            and_(
+                                Tasks.is_virtual.is_(True),
+                                Tasks.target_student_id == student_info.roleId,
+                                Tasks.status.in_(['0'])  # 只删除待接取的任务
+                            )
+                        ).all()
+
+                        for task in pending_tasks:
+                            # 清理图片引用，避免外键约束错误
+                            try:
+                                from shared.models.resource_images import ResourceImages
+                                self.db.query(ResourceImages).filter(
+                                    ResourceImages.used_in_task_id == task.id
+                                ).update({
+                                    'used_in_task_id': None,
+                                    'updated_at': datetime.now()
+                                })
+                                self.db.flush()
+                            except Exception as img_error:
+                                logger.warning(f"清理任务 {task.id} 的图片引用失败: {str(img_error)}")
+
+                            self.db.delete(task)
+
+                        existing_pool.total_subsidy = subsidy_amount  # 使用最新的补贴金额
+                        existing_pool.remaining_amount = subsidy_amount  # 重置剩余金额为最新补贴金额
+                        existing_pool.allocated_amount = subsidy_amount  # 重置已分配金额为最新补贴金额
+                        existing_pool.completed_amount = Decimal('0')  # 重置已完成金额
+                        existing_pool.consumed_subsidy = Decimal('0')  # 重置实际消耗补贴
+                        existing_pool.import_batch = import_batch
+                        existing_pool.updated_at = datetime.now()
+                        existing_pool.last_allocation_at = datetime.now()
+                        logger.info(f"学生 {student_name} 导入新金额 {subsidy_amount}，已重置补贴池数据")
+                        should_generate_tasks = True
+                else:
+                    # 检查是否为0元补贴
+                    if subsidy_amount == Decimal('0'):
+                        # 新学生导入0元补贴：不创建补贴池，直接跳过
+                        logger.info(f"新学生 {student_name} 导入0元补贴，跳过创建补贴池")
+                        should_generate_tasks = False
+                        total_students += 1  # 只统计学生数量
+                        continue
+                    else:
+                        # 创建新的补贴池
+                        pool = VirtualOrderPool(
+                            student_id=student_info.roleId,
+                            student_name=student_name,
+                            total_subsidy=subsidy_amount,
+                            remaining_amount=subsidy_amount,
+                            allocated_amount=subsidy_amount,
+                            completed_amount=Decimal('0'),
+                            status='active',
+                            import_batch=import_batch,
+                            created_at=datetime.now(),
+                            updated_at=datetime.now(),
+                            last_allocation_at=datetime.now()
+                        )
+                        self.db.add(pool)
+                        should_generate_tasks = True
+
+                # 准备分配请求（只有需要生成任务时才添加）
+                if use_service_allocation and should_generate_tasks and subsidy_amount > Decimal('0'):
                     allocation_requests.append({
                         'total_amount': subsidy_amount,
                         'student_id': student_info.roleId,
-                        'student_name': student_name
+                        'student_name': student_name,
+                        'on_demand': True  # 标记为按需生成
                     })
 
                 total_students += 1
-                total_subsidy += subsidy_amount
+                if subsidy_amount > Decimal('0'):
+                    total_subsidy += subsidy_amount
 
             # 提交补贴池更新
             self.db.commit()
@@ -2772,20 +3003,56 @@ class VirtualOrderService:
                     # 使用批量分配
                     results = self.allocator.batch_allocate_tasks(allocation_requests)
 
-                    for result in results:
+                    # 处理分配结果并更新补贴池
+                    for i, result in enumerate(results):
                         if result.success:
                             total_generated_tasks += len(result.allocated_tasks)
+
+                            # 如果是按需生成，需要更新补贴池剩余金额
+                            request = allocation_requests[i]
+                            if request.get('on_demand', False) and result.allocated_tasks:
+                                generated_amount = sum(Decimal(str(task['amount'])) for task in result.allocated_tasks)
+                                pool = self.db.query(VirtualOrderPool).filter(
+                                    VirtualOrderPool.student_id == request['student_id'],
+                                    VirtualOrderPool.is_deleted == False
+                                ).first()
+                                if pool:
+                                    pool.remaining_amount = request['total_amount'] - generated_amount
+                                    pool.updated_at = datetime.now()
 
                     # 提交任务创建
                     self.db.commit()
                 else:
                     # 使用原有方式生成任务
                     for request in allocation_requests:
-                        tasks = self.generate_virtual_tasks_for_student(
-                            request['student_id'],
-                            request['student_name'],
-                            request['total_amount']
-                        )
+                        # 检查是否为按需生成
+                        on_demand = request.get('on_demand', False)
+
+                        if on_demand:
+                            # 按需生成任务
+                            tasks = self.generate_on_demand_virtual_tasks_for_student(
+                                request['student_id'],
+                                request['student_name'],
+                                request['total_amount']
+                            )
+
+                            # 更新补贴池剩余金额
+                            if tasks:
+                                generated_amount = sum(task.commission for task in tasks)
+                                pool = self.db.query(VirtualOrderPool).filter(
+                                    VirtualOrderPool.student_id == request['student_id'],
+                                    VirtualOrderPool.is_deleted == False
+                                ).first()
+                                if pool:
+                                    pool.remaining_amount = request['total_amount'] - generated_amount
+                                    pool.updated_at = datetime.now()
+                        else:
+                            # 传统全量生成
+                            tasks = self.generate_virtual_tasks_for_student(
+                                request['student_id'],
+                                request['student_name'],
+                                request['total_amount']
+                            )
 
                         for task in tasks:
                             self.db.add(task)

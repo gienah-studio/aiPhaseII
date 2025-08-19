@@ -192,7 +192,7 @@ class VirtualOrderTaskScheduler:
             logger.info(f"学生 {pool.student_name} 有 {len(expired_tasks)} 个过期任务，总金额: {expired_amount}")
             logger.info(f"任务状态分布: {task_status_info}")
 
-            # 删除过期任务（排除状态为1、2、4的任务）
+            # 删除过期任务并释放金额回补贴池
             for task in expired_tasks:
                 logger.info(f"删除过期任务: ID={task.id}, 状态={task.status}, 金额={task.commission}")
 
@@ -213,71 +213,64 @@ class VirtualOrderTaskScheduler:
                 # 删除任务
                 db.delete(task)
 
-            # 重新计算剩余金额（基于实际消耗的补贴）
-            pool.remaining_amount = pool.total_subsidy - pool.consumed_subsidy
-            pool.updated_at = datetime.now()
+            # 释放过期任务金额回补贴池
+            if expired_amount > 0:
+                old_remaining = pool.remaining_amount
+                pool.remaining_amount += expired_amount
+                logger.info(f"释放过期任务金额 {expired_amount} 回补贴池，剩余金额: {old_remaining} → {pool.remaining_amount}")
 
-            # 检查当天是否还有真正的剩余补贴额度
-            # 需要考虑当前还有多少未完成的虚拟任务
-            current_pending_amount = db.query(func.sum(Tasks.commission)).filter(
-                and_(
-                    Tasks.is_virtual == True,
-                    Tasks.is_bonus_pool == False,  # 排除奖金池任务
-                    Tasks.target_student_id == student_id,
-                    Tasks.status.in_(['0', '1', '2'])  # 未接单、已接单、进行中
-                )
-            ).scalar() or Decimal('0')
+            # 按需生成逻辑：过期任务1:1严格替换
+            # 过期几个任务就生成几个任务，不考虑金额
+            expired_task_count = len(expired_tasks)
 
-            # 计算真正可用于生成新任务的金额
-            # 总补贴 - 已消耗补贴 - 当前待完成任务金额
-            actual_available_amount = pool.total_subsidy - pool.consumed_subsidy - current_pending_amount
+            logger.info(f"学生 {pool.student_name} 过期任务重新生成: 过期 {expired_task_count} 个任务，将生成 {expired_task_count} 个新任务")
 
-            # 确保不为负数
-            amount_to_generate = max(Decimal('0'), actual_available_amount)
+            # 重新生成任务（1:1替换）
+            if expired_task_count > 0:
+                # 过期任务重新生成使用与价值回收相同的规则
+                # - 剩余补贴 < 8元：生成5元任务
+                # - 剩余补贴 >= 8元：生成10元任务
+                if pool.remaining_amount < Decimal('8'):
+                    task_amount = Decimal('5')
+                else:
+                    task_amount = Decimal('10')
 
-            logger.info(f"学生 {pool.student_name} 过期任务重新生成检查: "
-                       f"总补贴={pool.total_subsidy}, 已消耗={pool.consumed_subsidy}, "
-                       f"当前待完成={current_pending_amount}, 可生成金额={amount_to_generate}")
+                logger.info(f"学生 {pool.student_name} 过期任务重新生成规则：剩余补贴 {pool.remaining_amount}元，生成 {task_amount}元 任务")
 
-            # 重新生成任务
-            if amount_to_generate > 0:
-                # 优先使用新的虚拟客服分配策略
-                try:
+                # 按需生成指定数量的任务（1:1替换）
+                generated_tasks_count = 0
+                total_generated_amount = Decimal('0')
+
+                for i in range(expired_task_count):
+                    # 每次生成1个任务，使用虚拟客服分配策略
                     result = service.generate_virtual_tasks_with_service_allocation(
-                        student_id, pool.student_name, amount_to_generate
+                        student_id, pool.student_name, task_amount, on_demand=True
                     )
-                    
-                    if result['success']:
-                        new_tasks_count = len(result['tasks'])
-                        new_tasks_total_amount = result['total_amount']
-                        logger.info(f"使用虚拟客服分配策略为学生 {pool.student_name} 重新生成了 {new_tasks_count} 个任务，总金额: {new_tasks_total_amount}")
+
+                    if result['success'] and result['tasks']:
+                        # 只取第一个任务的金额（确保1:1替换）
+                        actual_task_amount = Decimal(str(result['tasks'][0]['amount']))
+                        generated_tasks_count += 1
+                        total_generated_amount += actual_task_amount
+
+                        logger.info(f"为学生 {pool.student_name} 重新生成任务 {i+1}/{expired_task_count}，金额: {actual_task_amount}")
                     else:
-                        # 如果新策略失败，回退到原有方式
-                        logger.warning(f"虚拟客服分配策略失败: {result['message']}，回退到原有方式")
-                        new_tasks = service.generate_virtual_tasks_for_student(
-                            student_id, pool.student_name, amount_to_generate
-                        )
-                        
-                        # 保存新任务
-                        for task in new_tasks:
-                            db.add(task)
-                        
-                        new_tasks_total_amount = sum(task.commission for task in new_tasks)
-                        logger.info(f"使用原有方式为学生 {pool.student_name} 重新生成了 {len(new_tasks)} 个任务，总金额: {new_tasks_total_amount}")
-                        
-                except Exception as e:
-                    # 如果新策略出错，回退到原有方式
-                    logger.error(f"虚拟客服分配策略出错: {e}，回退到原有方式")
-                    new_tasks = service.generate_virtual_tasks_for_student(
-                        student_id, pool.student_name, amount_to_generate
-                    )
-                    
-                    # 保存新任务
-                    for task in new_tasks:
-                        db.add(task)
-                    
-                    new_tasks_total_amount = sum(task.commission for task in new_tasks)
-                    logger.info(f"使用原有方式为学生 {pool.student_name} 重新生成了 {len(new_tasks)} 个任务，总金额: {new_tasks_total_amount}")
+                        logger.warning(f"为学生 {pool.student_name} 生成第 {i+1} 个任务失败")
+                        break
+
+                # 更新补贴池剩余金额
+                if generated_tasks_count > 0:
+                    pool.remaining_amount -= total_generated_amount
+
+                    # 确保剩余金额不为负数
+                    if pool.remaining_amount < 0:
+                        pool.remaining_amount = Decimal('0')
+
+                    pool.updated_at = datetime.now()
+
+                    logger.info(f"为学生 {pool.student_name} 重新生成了 {generated_tasks_count} 个任务（1:1替换），总金额: {total_generated_amount}，剩余: {pool.remaining_amount}")
+                else:
+                    logger.warning(f"为学生 {pool.student_name} 过期任务重新生成失败")
 
                 # 已分配金额不需要更新（始终等于总补贴金额）
                 # pool.allocated_amount 保持不变
@@ -632,54 +625,43 @@ class VirtualOrderTaskScheduler:
                 logger.warning(f"未找到学生 {student_id} 的补贴池")
                 return
 
-            # 价值回收：检查是否还有剩余补贴额度
-            logger.info(f"学生 {pool.student_name} 价值回收: 回收金额 {recycled_amount}, 剩余补贴 {pool.remaining_amount}")
+            # 价值回收：基于补贴池剩余金额生成1-2个任务
+            logger.info(f"学生 {pool.student_name} 价值回收: 剩余补贴 {pool.remaining_amount}")
 
             # 检查是否还有剩余补贴额度
             if pool.remaining_amount <= 0:
                 logger.info(f"学生 {pool.student_name} 当日补贴已用完，跳过价值回收任务生成")
                 return
 
-            # 计算实际可用于生成任务的金额（不能超过剩余补贴）
-            available_amount = min(recycled_amount, pool.remaining_amount)
+            # 价值回收任务金额规则：
+            # - 剩余补贴 < 8元：生成5元任务
+            # - 剩余补贴 >= 8元：生成10元任务
+            if pool.remaining_amount < Decimal('8'):
+                task_amount = Decimal('5')
+            else:
+                task_amount = Decimal('10')
 
-            if available_amount < recycled_amount:
-                logger.info(f"学生 {pool.student_name} 价值回收受限：回收金额 {recycled_amount}，但剩余补贴仅 {pool.remaining_amount}，实际生成任务金额 {available_amount}")
+            logger.info(f"学生 {pool.student_name} 价值回收规则：剩余补贴 {pool.remaining_amount}元，生成 {task_amount}元 任务")
 
-            # 如果可用金额大于0，重新生成任务
-            if available_amount > 0:
-                # 优先使用新的虚拟客服分配策略
-                try:
-                    result = service.generate_virtual_tasks_with_service_allocation(
-                        student_id, pool.student_name, available_amount
-                    )
+            # 使用虚拟客服分配策略生成指定金额的任务
+            result = service.generate_virtual_tasks_with_service_allocation(
+                student_id, pool.student_name, task_amount, on_demand=True
+            )
 
-                    if result['success']:
-                        # 更新补贴池：减少剩余金额（不增加，因为这是在消耗补贴）
-                        pool.remaining_amount -= available_amount
-                        pool.updated_at = datetime.now()
+            if result['success']:
+                # 更新补贴池：减少剩余金额
+                generated_amount = Decimal(str(result['total_amount']))
+                pool.remaining_amount -= generated_amount
 
-                        logger.info(f"使用虚拟客服分配策略为学生 {pool.student_name} 重新生成了 {len(result['tasks'])} 个任务，总金额: {result['total_amount']}，剩余补贴: {pool.remaining_amount}")
-                    else:
-                        logger.error(f"虚拟客服分配策略失败: {result['message']}")
+                # 确保剩余金额不为负数（价值回收可能超出剩余补贴）
+                if pool.remaining_amount < 0:
+                    pool.remaining_amount = Decimal('0')
 
-                except Exception as e:
-                    # 如果新策略出错，回退到原有方式
-                    logger.error(f"虚拟客服分配策略出错: {e}，回退到原有方式")
-                    new_tasks = service.generate_virtual_tasks_for_student(
-                        student_id, pool.student_name, available_amount
-                    )
+                pool.updated_at = datetime.now()
 
-                    # 保存新任务
-                    for task in new_tasks:
-                        db.add(task)
-
-                    # 更新补贴池：减少剩余金额（不增加，因为这是在消耗补贴）
-                    pool.remaining_amount -= available_amount
-                    pool.updated_at = datetime.now()
-
-                    new_tasks_total_amount = sum(task.commission for task in new_tasks)
-                    logger.info(f"使用原有方式为学生 {pool.student_name} 重新生成了 {len(new_tasks)} 个任务，总金额: {new_tasks_total_amount}，剩余补贴: {pool.remaining_amount}")
+                logger.info(f"为学生 {pool.student_name} 价值回收生成了 {len(result['tasks'])} 个任务，总金额: {generated_amount}，剩余补贴: {pool.remaining_amount}")
+            else:
+                logger.warning(f"为学生 {pool.student_name} 价值回收生成任务失败: {result['message']}")
 
         except Exception as e:
             logger.error(f"处理学生 {student_id} 的价值回收时出错: {str(e)}")

@@ -53,8 +53,8 @@ class ExcelProcessor:
                 # 验证补贴金额
                 try:
                     subsidy_amount = float(row['补贴金额'])
-                    if subsidy_amount <= 0:
-                        # 自动过滤补贴金额为0或负数的记录，不报错
+                    if subsidy_amount < 0:
+                        # 只过滤负数，允许0元补贴（用于隐藏学生）
                         filtered_count += 1
                         continue
                 except (ValueError, TypeError):

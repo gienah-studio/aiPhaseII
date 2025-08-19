@@ -3,6 +3,7 @@ from shared.models.system_config import SystemConfig
 from typing import Union
 import json
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -272,9 +273,9 @@ class ConfigService:
                 try:
                     logger.info(f"为学生 {pool.student_name}(ID:{pool.student_id}) 生成任务，剩余补贴: {pool.remaining_amount}")
 
-                    # 使用虚拟客服分配策略生成任务
+                    # 使用虚拟客服分配策略按需生成任务（1-2个任务）
                     result = service.generate_virtual_tasks_with_service_allocation(
-                        pool.student_id, pool.student_name, pool.remaining_amount
+                        pool.student_id, pool.student_name, pool.remaining_amount, on_demand=True
                     )
 
                     if result['success']:
@@ -282,7 +283,12 @@ class ConfigService:
                         total_generated_tasks += task_count
                         processed_count += 1
 
-                        logger.info(f"成功为学生 {pool.student_name} 生成了 {task_count} 个任务，总金额: {result['total_amount']}")
+                        # 更新补贴池剩余金额（按需生成模式）
+                        generated_amount = result['total_amount']
+                        pool.remaining_amount -= generated_amount
+                        pool.updated_at = datetime.now()
+
+                        logger.info(f"成功为学生 {pool.student_name} 生成了 {task_count} 个任务，总金额: {result['total_amount']}，剩余补贴: {pool.remaining_amount}")
                     else:
                         logger.error(f"为学生 {pool.student_name} 生成任务失败: {result['message']}")
 

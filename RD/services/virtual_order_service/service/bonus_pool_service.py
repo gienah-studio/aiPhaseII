@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 import logging
 
+logger = logging.getLogger(__name__)
+
 from shared.models.bonus_pool import BonusPool
 from shared.models.student_daily_achievement import StudentDailyAchievement
 from shared.models.system_config import SystemConfig
@@ -558,6 +560,19 @@ class BonusPoolService:
         
         # 删除过期任务（与普通虚拟任务保持一致）
         for task in expired_tasks:
+            # 先清理图片引用，避免外键约束错误
+            try:
+                from shared.models.resource_images import ResourceImages
+                self.db.query(ResourceImages).filter(
+                    ResourceImages.used_in_task_id == task.id
+                ).update({
+                    'used_in_task_id': None,
+                    'updated_at': datetime.now()
+                })
+                self.db.flush()
+            except Exception as img_error:
+                logger.warning(f"清理奖金池任务 {task.id} 的图片引用失败: {str(img_error)}")
+
             self.db.delete(task)
         
         # 更新奖金池

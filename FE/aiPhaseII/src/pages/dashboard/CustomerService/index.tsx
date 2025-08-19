@@ -482,15 +482,15 @@ const CustomerService: React.FC = () => {
             </Form.Item>
           )}
 
-          {/*{editingRecord && (*/}
-          {/*  <Form.Item*/}
-          {/*    name="newPassword"*/}
-          {/*    label="新密码"*/}
-          {/*    help="留空则不修改密码"*/}
-          {/*  >*/}
-          {/*    <Input.Password placeholder="请输入新密码（可选）" />*/}
-          {/*  </Form.Item>*/}
-          {/*)}*/}
+          {editingRecord && (
+            <Form.Item
+              name="newPassword"
+              label="新密码"
+              help="留空则不修改密码"
+            >
+              <Input.Password placeholder="请输入新密码（可选）" />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 
