@@ -987,11 +987,11 @@ class VirtualOrderService:
     def get_virtual_order_stats(self) -> Dict[str, Any]:
         """获取虚拟订单统计信息"""
         try:
-            # 统计学生数量
-            total_students = self.db.query(VirtualOrderPool).count()
+            # 统计学生数量（只统计未删除的记录）
+            total_students = self.db.query(VirtualOrderPool).filter(VirtualOrderPool.is_deleted == False).count()
 
-            # 统计总补贴金额
-            total_subsidy_result = self.db.query(func.sum(VirtualOrderPool.total_subsidy)).scalar()
+            # 统计总补贴金额（只统计未删除的记录）
+            total_subsidy_result = self.db.query(func.sum(VirtualOrderPool.total_subsidy)).filter(VirtualOrderPool.is_deleted == False).scalar()
             total_subsidy = float(total_subsidy_result) if total_subsidy_result else 0.0
 
             # 统计生成的任务数量
@@ -1658,6 +1658,36 @@ class VirtualOrderService:
                     setattr(cs, field, update_data[field])
                     updated_fields.append(field)
 
+            # 处理密码更新
+            if 'new_password' in update_data and update_data['new_password'] is not None:
+                new_password = update_data['new_password'].strip()
+                if new_password:  # 确保密码不为空
+                    from shared.models.original_user import OriginalUser
+                    import bcrypt
+
+                    # 加密新密码
+                    salt = bcrypt.gensalt(rounds=10)
+                    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), salt).decode('utf-8')
+
+                    # 更新虚拟客服表的密码
+                    cs.initial_password = hashed_password
+
+                    # 同时更新关联的用户表密码
+                    user = self.db.query(OriginalUser).filter(
+                        OriginalUser.id == cs.user_id,
+                        OriginalUser.isDeleted == False
+                    ).first()
+
+                    if user:
+                        user.password = hashed_password
+                        updated_fields.append('password')
+                    else:
+                        raise BusinessException(
+                            code=404,
+                            message="未找到对应的用户记录",
+                            data=None
+                        )
+
             if updated_fields:
                 self.db.commit()
 
@@ -2020,11 +2050,11 @@ class VirtualOrderService:
 
             total_students = query.count()
 
-            # 从补贴池统计总补贴金额
+            # 从补贴池统计总补贴金额（只统计未删除的记录）
             pool_stats = self.db.query(
                 func.sum(VirtualOrderPool.total_subsidy).label('total_subsidy'),
                 func.sum(VirtualOrderPool.completed_amount).label('total_completed')
-            ).first()
+            ).filter(VirtualOrderPool.is_deleted == False).first()
 
             # 任务统计查询 (status=4表示已完成)
             task_query = self.db.query(

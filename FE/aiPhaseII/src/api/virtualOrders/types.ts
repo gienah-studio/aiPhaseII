@@ -65,13 +65,13 @@ export interface StudentPoolParams {
  */
 export interface VirtualCustomerServiceInfo {
   id: number;
-  user_id?: number;
+  userId?: number;
   name: string;
   account: string;
   level: string;
   status: string;
-  last_login_time?: string;
-  created_at?: string;
+  lastLoginTime?: string;
+  createdAt?: string;
 }
 
 /**
@@ -105,10 +105,11 @@ export interface VirtualCustomerServiceCreate {
 
 /**
  * 更新虚拟客服请求
- * 根据业务需求，编辑时只能修改姓名
+ * 根据业务需求，编辑时可以修改姓名和密码
  */
 export interface VirtualCustomerServiceUpdate {
   name?: string;
+  newPassword?: string;
 }
 
 /**

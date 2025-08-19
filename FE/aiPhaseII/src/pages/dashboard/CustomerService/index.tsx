@@ -189,8 +189,19 @@ const CustomerService: React.FC = () => {
         const updateData: VirtualCustomerServiceUpdate = {
           name: values.name
         };
+
+        // 如果输入了新密码，则包含在更新数据中
+        if (values.newPassword && values.newPassword.trim()) {
+          updateData.newPassword = values.newPassword.trim();
+        }
+
         await updateVirtualCustomerService(editingRecord.id, updateData);
-        message.success('更新客服信息成功');
+
+        // 根据是否更新了密码显示不同的成功消息
+        const successMessage = values.newPassword && values.newPassword.trim()
+          ? '更新客服信息和密码成功'
+          : '更新客服信息成功';
+        message.success(successMessage);
       } else {
         // 创建
         const createData: VirtualCustomerServiceCreate = {
@@ -297,15 +308,15 @@ const CustomerService: React.FC = () => {
     },
     {
       title: '最后登录',
-      dataIndex: 'last_login_time',
-      key: 'last_login_time',
+      dataIndex: 'lastLoginTime',
+      key: 'lastLoginTime',
       width: 180,
       render: (time: string) => time ? new Date(time).toLocaleString() : '从未登录',
     },
     {
       title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
       width: 180,
       render: (time: string) => time ? new Date(time).toLocaleString() : '-',
     },
@@ -470,6 +481,16 @@ const CustomerService: React.FC = () => {
               <Input.Password placeholder="请输入初始密码" />
             </Form.Item>
           )}
+
+          {/*{editingRecord && (*/}
+          {/*  <Form.Item*/}
+          {/*    name="newPassword"*/}
+          {/*    label="新密码"*/}
+          {/*    help="留空则不修改密码"*/}
+          {/*  >*/}
+          {/*    <Input.Password placeholder="请输入新密码（可选）" />*/}
+          {/*  </Form.Item>*/}
+          {/*)}*/}
         </Form>
       </Modal>
 

@@ -67,7 +67,7 @@ class AuthService:
 
         # 查询用户记录，排除已删除的用户
         # admin 和虚拟客服可以直接登录，其他用户需要检查 userinfo 表
-        if username != 'admin' and user.role != 'virtual_customer_service':
+        if username != 'admin' and user.role != '6':
             user_record = self.db.query(UserInfo).filter(
                 UserInfo.account == username,
                 UserInfo.isDeleted == False
@@ -121,7 +121,7 @@ class AuthService:
         user_type = 0  # 默认值
         if user.role == 'admin':
             user_type = 0
-        elif user.role == '5':  # 虚拟客服角色为5
+        elif user.role == '6':  # 虚拟客服角色为6
             user_type = 6  # 虚拟客服使用6作为用户类型
         else:
             # 其他角色尝试转换为整数

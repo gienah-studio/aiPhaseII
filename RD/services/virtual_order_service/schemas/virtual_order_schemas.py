@@ -153,6 +153,10 @@ class VirtualCustomerServiceUpdate(BaseModel):
     """更新虚拟客服请求"""
     name: Optional[str] = Field(None, description="客服姓名")
     status: Optional[str] = Field(None, description="状态：active-活跃, inactive-停用")
+    new_password: Optional[str] = Field(None, alias="newPassword", description="新密码")
+
+    class Config:
+        allow_population_by_field_name = True  # 允许通过字段名和别名两种方式赋值
 
 class VirtualCustomerServiceUpdateResponse(BaseModel):
     """更新虚拟客服响应"""

@@ -262,12 +262,12 @@ class VirtualCustomerServiceManager:
                 # 更新允许的字段
                 allowed_fields = ['name', 'status']
                 updated_fields = []
-                
+
                 for field in allowed_fields:
                     if field in update_data and update_data[field] is not None:
                         old_value = getattr(cs, field)
                         new_value = update_data[field]
-                        
+
                         if old_value != new_value:
                             setattr(cs, field, new_value)
                             updated_fields.append({
@@ -275,6 +275,42 @@ class VirtualCustomerServiceManager:
                                 'old_value': old_value,
                                 'new_value': new_value
                             })
+
+                # 处理密码更新
+                if 'new_password' in update_data and update_data['new_password'] is not None:
+                    new_password = update_data['new_password'].strip()
+                    if new_password:  # 确保密码不为空
+                        # 导入必要的模块
+                        import bcrypt
+                        from shared.models.original_user import OriginalUser
+
+                        # 加密新密码
+                        salt = bcrypt.gensalt(rounds=10)
+                        hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), salt).decode('utf-8')
+
+                        # 更新虚拟客服表的密码
+                        cs.initial_password = hashed_password
+
+                        # 同时更新关联的用户表密码
+                        user = self.db.query(OriginalUser).filter(
+                            OriginalUser.id == cs.user_id,
+                            OriginalUser.isDeleted == False
+                        ).first()
+
+                        if user:
+                            user.password = hashed_password
+                            updated_fields.append({
+                                'field': 'password',
+                                'old_value': '***',  # 不显示密码明文
+                                'new_value': '***'
+                            })
+                        else:
+                            logger.warning(f"未找到虚拟客服 {cs.id} 对应的用户记录")
+                            raise BusinessException(
+                                code=404,
+                                message="未找到对应的用户记录",
+                                data=None
+                            )
                 
                 if updated_fields:
                     cs.updated_at = datetime.now()
