@@ -44,8 +44,10 @@ const Login: React.FC = () => {
       console.error('错误消息:', error?.message);
       console.error('API响应:', error?.apiResponse);
 
-      // 直接尝试获取错误消息
-      const errorMsg = error?.response?.data?.message ||
+      // 直接尝试获取错误消息，支持detail字段
+      const errorMsg = error?.response?.data?.detail ||
+                      error?.response?.data?.message ||
+                      error?.apiResponse?.detail ||
                       error?.apiResponse?.message ||
                       error?.message ||
                       '登录失败，请检查用户名和密码';

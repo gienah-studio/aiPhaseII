@@ -200,8 +200,9 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       await onCategoryDelete(selectedCategory);
       message.success('删除成功');
       onCategorySelect('');
-    } catch (error) {
-      message.error('删除失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '删除失败';
+      message.error(errorMsg);
     } finally {
       setActionLoading(false);
     }
@@ -221,8 +222,9 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       message.success('添加成功');
       setAddModalVisible(false);
       form.resetFields();
-    } catch (error) {
-      message.error('添加失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '添加失败';
+      message.error(errorMsg);
     } finally {
       setActionLoading(false);
     }
@@ -244,8 +246,9 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       setEditModalVisible(false);
       setCurrentCategory(null);
       form.resetFields();
-    } catch (error) {
-      message.error('编辑失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '编辑失败';
+      message.error(errorMsg);
     } finally {
       setActionLoading(false);
     }

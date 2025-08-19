@@ -81,7 +81,10 @@ export class Message {
    */
   static apiError(error: any, defaultMessage = '操作失败，请稍后重试') {
     // 优先从apiResponse中获取错误信息（由响应拦截器设置）
-    const errorMessage = error?.apiResponse?.message ||
+    // 支持detail字段（FastAPI验证错误格式）和message字段
+    const errorMessage = error?.apiResponse?.detail ||
+                        error?.apiResponse?.message ||
+                        error?.response?.data?.detail ||
                         error?.response?.data?.message ||
                         error?.message ||
                         defaultMessage;

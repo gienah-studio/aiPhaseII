@@ -48,17 +48,18 @@ class ConfigService:
             logger.error(f"获取配置失败: key={key}, error={str(e)}")
             return default_value
     
-    def set_config(self, key: str, value: Union[str, int, float, dict], 
-                   config_type: str = 'string', description: str = None) -> bool:
+    def set_config(self, key: str, value: Union[str, int, float, dict],
+                   config_type: str = 'string', description: str = None, init_only: bool = False) -> bool:
         """
         设置配置值
-        
+
         Args:
             key: 配置键
             value: 配置值
-            config_type: 配置类型 (string, number, json)
+            config_type: 配置类型 (string, number, json, boolean)
             description: 配置描述
-            
+            init_only: 是否仅在配置不存在时才设置（用于初始化，避免覆盖用户配置）
+
         Returns:
             是否设置成功
         """
@@ -67,7 +68,12 @@ class ConfigService:
             config = self.db.query(SystemConfig).filter(
                 SystemConfig.config_key == key
             ).first()
-            
+
+            # 如果是初始化模式且配置已存在，则跳过
+            if init_only and config:
+                logger.info(f"配置 {key} 已存在，跳过初始化")
+                return True
+
             # 转换值为字符串
             if config_type == 'json':
                 config_value = json.dumps(value, ensure_ascii=False)
@@ -129,72 +135,80 @@ class ConfigService:
         }
     
     def init_auto_confirm_config(self):
-        """初始化自动确认配置"""
+        """初始化自动确认配置（仅在配置不存在时设置默认值）"""
         try:
-            # 设置默认配置
+            # 设置默认配置（仅在不存在时）
             self.set_config(
-                'auto_confirm_enabled', 
-                True, 
-                'string', 
-                '是否启用虚拟任务自动确认功能'
+                'auto_confirm_enabled',
+                True,
+                'string',
+                '是否启用虚拟任务自动确认功能',
+                init_only=True
             )
-            
+
             self.set_config(
-                'auto_confirm_interval_hours', 
-                1.0, 
-                'number', 
-                '自动确认时间间隔（小时）'
+                'auto_confirm_interval_hours',
+                1.0,
+                'number',
+                '自动确认时间间隔（小时）',
+                init_only=True
             )
-            
+
             self.set_config(
-                'auto_confirm_max_batch_size', 
-                100, 
-                'number', 
-                '单次自动确认最大处理数量'
+                'auto_confirm_max_batch_size',
+                100,
+                'number',
+                '单次自动确认最大处理数量',
+                init_only=True
             )
-            
+
             logger.info("自动确认配置初始化完成")
 
         except Exception as e:
             logger.error(f"初始化自动确认配置失败: {str(e)}")
 
     def init_virtual_task_generation_config(self):
-        """初始化虚拟任务生成配置"""
+        """初始化虚拟任务生成配置（仅在配置不存在时设置默认值）"""
         try:
-            # 设置默认配置
+            # 设置默认配置（仅在不存在时）
             self.set_config(
                 'virtual_task_generation_enabled',
                 True,
                 'boolean',
-                '是否启用虚拟任务生成功能（总开关）'
+                '是否启用虚拟任务生成功能（总开关）',
+                init_only=True
             )
 
             self.set_config(
                 'virtual_task_daily_bonus_enabled',
                 True,
                 'boolean',
-                '是否启用每日奖金池任务生成'
+                '是否启用每日奖金池任务生成',
+                init_only=True
             )
 
             self.set_config(
                 'virtual_task_expired_regeneration_enabled',
                 True,
                 'boolean',
-                '是否启用过期任务重新生成'
+                '是否启用过期任务重新生成',
+                init_only=True
             )
 
             self.set_config(
                 'virtual_task_value_recycling_enabled',
                 True,
                 'boolean',
-                '是否启用价值回收任务生成'
+                '是否启用价值回收任务生成',
+                init_only=True
             )
 
             self.set_config(
                 'virtual_task_bonus_pool_enabled',
                 True,
                 'boolean',
-                '是否启用奖金池任务生成'
+                '是否启用奖金池任务生成',
+                init_only=True
             )
 
             logger.info("虚拟任务生成配置初始化完成")

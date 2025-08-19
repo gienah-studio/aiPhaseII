@@ -57,7 +57,7 @@ async def import_student_subsidy(
         df = await ExcelProcessor.read_excel_file(file)
         
         # 验证数据
-        valid_data, errors = ExcelProcessor.validate_student_subsidy_data(df)
+        valid_data, errors, filtered_count = ExcelProcessor.validate_student_subsidy_data(df)
         
         if errors:
             raise HTTPException(
@@ -68,18 +68,38 @@ async def import_student_subsidy(
         if not valid_data:
             raise HTTPException(status_code=400, detail="没有有效的数据可导入")
         
+        # 检查虚拟任务生成配置
+        from ..service.config_service import ConfigService
+        config_service = ConfigService(db)
+        task_generation_config = config_service.get_virtual_task_generation_config()
+        task_generation_enabled = task_generation_config.get('enabled', True)
+
         # 生成导入批次号
         import_batch = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
-        
-        # 执行导入（使用虚拟客服分配策略）
+
+        # 执行导入（根据配置决定是否生成虚拟任务）
         service = VirtualOrderService(db)
         result = service.import_student_subsidy_data_with_service_allocation(
-            valid_data, import_batch, use_service_allocation=True
+            valid_data, import_batch, use_service_allocation=True,
+            generate_tasks=task_generation_enabled
         )
         
+        # 构建成功消息，包含过滤信息和任务生成状态
+        success_message = "导入成功"
+        if filtered_count > 0:
+            success_message += f"，已自动过滤 {filtered_count} 条补贴金额为0的记录"
+
+        # 添加任务生成状态信息
+        if not task_generation_enabled:
+            success_message += "，虚拟任务生成功能已关闭，仅创建补贴池记录"
+        elif result.get('generated_tasks', 0) == 0:
+            success_message += "，未生成虚拟任务"
+        else:
+            success_message += f"，已生成 {result.get('generated_tasks', 0)} 个虚拟任务"
+
         return ResponseSchema[StudentSubsidyImportResponse](
             code=200,
-            message="导入成功",
+            message=success_message,
             data=StudentSubsidyImportResponse(**result)
         )
         

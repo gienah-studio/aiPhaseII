@@ -343,6 +343,9 @@ class VirtualCustomerServiceManager:
                 reallocation_result = self.allocator.handle_service_deletion(cs_id)
                 
                 # 2. 软删除虚拟客服记录
+                # 修改account字段以避免唯一约束冲突
+                deleted_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                cs.account = f"{cs.account}_deleted_{deleted_timestamp}"
                 cs.is_deleted = True
                 cs.status = 'deleted'
                 cs.updated_at = datetime.now()

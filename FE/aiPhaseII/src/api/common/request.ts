@@ -73,7 +73,8 @@ request.interceptors.response.use(
     // 如果有响应数据，将错误信息附加到error对象上，方便前端处理
     if (error.response?.data) {
       error.apiResponse = error.response.data;
-      error.message = error.response.data.message || error.message;
+      // 优先使用detail字段，然后是message字段
+      error.message = error.response.data.detail || error.response.data.message || error.message;
     }
 
     return Promise.reject(error);

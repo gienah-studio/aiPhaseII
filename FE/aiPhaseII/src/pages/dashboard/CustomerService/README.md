@@ -27,8 +27,8 @@
 
 - `GET /api/virtualOrders/customerService` - 获取客服列表
 - `POST /api/virtualOrders/customerService` - 创建客服
-- `PUT /api/virtualOrders/customerService/{roleId}` - 更新客服信息
-- `DELETE /api/virtualOrders/customerService/{roleId}` - 删除客服
+- `PUT /api/virtualOrders/customerService/{cs_id}` - 更新客服信息
+- `DELETE /api/virtualOrders/customerService/{cs_id}` - 删除客服
 - `POST /api/virtualOrders/import/customerService` - 批量导入客服
 
 ### 数据结构
@@ -36,15 +36,14 @@
 #### VirtualCustomerServiceInfo
 ```typescript
 interface VirtualCustomerServiceInfo {
-  roleId: number;
-  userId?: number;
+  id: number;
+  user_id?: number;
   name: string;
   account: string;
   level: string;
-  phoneNumber?: string;
-  idCard?: string;
-  lastLoginTime?: string;
-  createdAt?: string;
+  status: string;
+  last_login_time?: string;
+  created_at?: string;
 }
 ```
 

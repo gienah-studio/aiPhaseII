@@ -108,6 +108,11 @@ class VirtualOrderService:
             with open(templates_file, 'r', encoding='utf-8') as f:
                 self.task_templates_data = json.load(f)
 
+            # 加载具体头像风格配置
+            avatar_styles_file = os.path.join(config_dir, 'avatar_styles_specific.json')
+            with open(avatar_styles_file, 'r', encoding='utf-8') as f:
+                self.avatar_styles_specific = json.load(f)
+
         except Exception as e:
             # 如果加载失败，使用默认配置
             print(f"警告：加载任务内容配置文件失败: {str(e)}")
@@ -119,6 +124,7 @@ class VirtualOrderService:
             self.task_backgrounds = ["梦幻的场景中"]
             self.task_styles = ["水彩手绘风格，柔和的色彩晕染"]
             self.task_templates_data = None
+            self.avatar_styles_specific = None
     
     def generate_order_number(self) -> str:
         """生成订单号"""
@@ -174,26 +180,31 @@ class VirtualOrderService:
     def generate_task_content_by_type(self, task_type: str) -> Dict[str, str]:
         """
         根据指定类型生成任务内容
-        
+
         Args:
             task_type: 任务类型
-            
+
         Returns:
             Dict[str, str]: 包含summary、requirement和task_type的字典
         """
         try:
             # 获取该类型的标题
             title = self._get_title_by_task_type(task_type)
-            
-            # 生成需求描述
-            requirement = self._generate_requirement_by_type(task_type)
-            
+
+            # 对于头像改版，100%使用具体风格生成
+            if task_type == 'avatar_redesign':
+                # 100% 使用具体风格描述，确保符合客户要求
+                requirement = self._generate_specific_avatar_requirement()
+            else:
+                # 其他类型使用原有方式
+                requirement = self._generate_requirement_by_type(task_type)
+
             return {
                 'summary': title,
                 'requirement': requirement,
                 'task_type': task_type
             }
-            
+
         except Exception as e:
             logger.warning(f"按类型生成任务内容失败: {str(e)}, 使用默认方式")
             # 失败时使用原有方式
@@ -214,12 +225,22 @@ class VirtualOrderService:
         """
         title_mapping = {
             'avatar_redesign': [
-                '生成高质量、风格化的虚拟人物头像',
-                '创作个性化角色头像设计',
-                '设计独特风格的人物肖像',
+                '生成宫崎骏风格头像',
+                '生成二次元风格头像',
+                '生成虚拟头像',
+                '生成国风头像',
+                '生成科技感头像',
+                '生成卡通风格头像',
+                '生成小清新风格头像',
+                '生成光影感强的头像',
+                '生成手绘风格头像',
+                '生成美颜后的头像',
+                '生成艺术照风格感的头像',
+                '生成POP风格头像',
+                '生成赛博朋克风格头像',
                 '制作精美的虚拟人物形象',
                 '绘制具有表现力的角色头像',
-                '生成富有创意的人物头像'
+                '创作个性化角色头像设计'
             ],
             'room_decoration': [
                 '设计温馨舒适的室内空间',
@@ -253,22 +274,129 @@ class VirtualOrderService:
             titles = title_mapping.get(task_type)
         return random.choice(titles)
     
+    def _generate_specific_avatar_requirement(self) -> str:
+        """
+        生成具体的头像风格需求描述
+
+        Returns:
+            str: 具体的头像需求描述
+        """
+        if not hasattr(self, 'avatar_styles_specific') or not self.avatar_styles_specific:
+            # 如果没有加载具体风格配置，使用大规模组合方式
+            return self._generate_large_scale_avatar_requirement()
+
+        try:
+            # 从具体风格配置中随机选择
+            style_combinations = self.avatar_styles_specific.get('style_combinations', [])
+            specific_styles = self.avatar_styles_specific.get('specific_styles', {})
+
+            if not style_combinations:
+                return self._generate_large_scale_avatar_requirement()
+
+            # 随机选择一个风格组合
+            style_combo = random.choice(style_combinations)
+            style_name = style_combo['style']
+            template = style_combo['template']
+
+            # 获取该风格的具体配置
+            style_config = specific_styles.get(style_name, {})
+
+            # 随机选择技法、色彩和特征
+            technique = random.choice(style_config.get('techniques', ['专业处理']))
+            color = random.choice(style_config.get('colors', ['协调色彩']))
+            feature = random.choice(style_config.get('features', ['精美效果']))
+
+            # 格式化模板
+            return template.format(
+                technique=technique,
+                color=color,
+                feature=feature
+            )
+
+        except Exception as e:
+            # 如果出错，回退到大规模组合方式
+            logger.warning(f"生成具体头像风格描述失败: {str(e)}")
+            return self._generate_large_scale_avatar_requirement()
+
+    def _generate_large_scale_avatar_requirement(self) -> str:
+        """
+        生成大规模组合的头像风格需求描述，专注于头像改版相关的技法
+
+        Returns:
+            str: 头像改版的需求描述
+        """
+        # 头像风格库（客户要求的具体风格为主）
+        styles = [
+            # 客户要求的13种基础风格
+            '宫崎骏风格', '二次元风格', '虚拟头像', '国风', '科技感',
+            '卡通风格', '小清新风格', '光影感强', '手绘风格', '美颜后',
+            '艺术照风格', 'POP风格', '赛博朋克风格',
+            # 相关绘画风格扩展
+            '水彩风格', '油画风格', '素描风格', '像素风格', '蒸汽波风格',
+            '动漫风格', 'Q版风格', '日系风格', '萌系风格', '治愈系风格',
+            '欧美风格', '韩系风格', '复古风格', '现代风格', '简约风格'
+        ]
+
+        # 头像处理技法库（专注于图像处理和绘画技法）
+        techniques = [
+            '线条处理', '色彩调整', '风格转换', '细节优化', '特征保持',
+            '比例调整', '光影渲染', '质感提升', '美颜处理', '笔触表现',
+            '水彩渲染', '油画厚涂', '素描勾勒', '数字绘制', '手绘技法',
+            '面部重塑', '五官优化', '肌肤美化', '发型设计', '表情调整',
+            '眼部处理', '鼻部调整', '嘴部优化', '脸型修饰', '轮廓强化'
+        ]
+
+        # 色彩搭配库
+        colors = [
+            '暖色调', '冷色调', '中性色', '高饱和度', '低饱和度',
+            '明亮色调', '渐变色彩', '单色调', '对比色彩', '柔和色系',
+            '鲜艳色彩', '淡雅色调', '复古色系', '现代色彩', '自然色调',
+            '粉嫩色系', '清新色调', '浓郁色彩', '淡雅配色', '和谐色调'
+        ]
+
+        # 效果特征库
+        features = [
+            '精美效果', '自然美感', '艺术气息', '专业质感', '视觉冲击',
+            '温暖感觉', '清新氛围', '神秘魅力', '现代感', '复古韵味',
+            '梦幻效果', '立体层次', '细腻质感', '生动表现', '和谐统一',
+            '可爱魅力', '优雅气质', '时尚感', '个性特色', '独特风采'
+        ]
+
+        # 随机选择组合
+        style = random.choice(styles)
+        technique = random.choice(techniques)
+        color = random.choice(colors)
+        feature = random.choice(features)
+
+        # 模板库
+        templates = [
+            f'生成{style}头像：采用{technique}技法，运用{color}色彩，展现{feature}，打造专业效果',
+            f'制作{style}头像：使用{technique}处理，配合{color}色调，体现{feature}，呈现精美作品',
+            f'设计{style}头像：通过{technique}技术，采用{color}配色，突出{feature}，营造独特风格',
+            f'绘制{style}头像：运用{technique}手法，使用{color}色彩，展现{feature}，体现艺术美感',
+            f'创作{style}头像：采用{technique}效果，配合{color}色调，营造{feature}，呈现专业水准'
+        ]
+
+        return random.choice(templates)
+
     def _generate_requirement_by_type(self, task_type: str) -> str:
         """
         根据任务类型生成对应的需求描述
-        
+
         Args:
             task_type: 任务类型
-            
+
         Returns:
             str: 需求描述
         """
-        # 基础描述模板
+        # 基础描述模板 - 更具体化的描述
         base_templates = {
             'avatar_redesign': [
-                '头像改版：将人物头像转换为{style}风格，保持面部特征和辨识度，使用{technique}处理细节，采用{color}色彩方案，确保风格转换自然流畅',
-                '头像改版：制作{style}风格头像，保留原有人物特征，通过{technique}优化画面效果，运用{color}统一色调，避免五官变形或风格突兀',
-                '头像改版：转换头像为{style}风格，维持人物辨识度和基本特征，采用{technique}技术处理，使用{color}配色，确保转换效果协调'
+                '生成{style}头像：将人物头像转换为{style}，保持面部特征和辨识度，使用{technique}处理细节，采用{color}色彩方案，确保风格转换自然流畅',
+                '制作{style}头像：创作具有{style}特色的人物头像，通过{technique}优化画面效果，运用{color}统一色调，突出风格特点',
+                '设计{style}头像：打造{style}的人物形象，采用{technique}技术处理，使用{color}配色，营造独特的视觉效果',
+                '绘制{style}头像：创建富有{style}特色的角色形象，运用{technique}技法，配合{color}色调，展现风格魅力',
+                '生成{style}人物头像：制作具有{style}风格特征的头像作品，通过{technique}处理，采用{color}色彩搭配，呈现专业效果'
             ],
             'room_decoration': [
                 '装修风格：设计{style}风格室内空间，重点处理{technique}，使用{color}作为主色调，确保空间功能合理，整体效果统一',
@@ -284,10 +412,17 @@ class VirtualOrderService:
 
         # 针对不同任务类型的专用变量池
         if task_type == 'avatar_redesign':
-            styles = ['二次元', '动漫', '卡通', '手绘', 'Q版', '日系', '萌系', '治愈系']
-            moods = ['清晰', '柔和', '鲜明', '自然', '简洁', '精致', '生动', '和谐']
-            techniques = ['线条处理', '色彩调整', '风格转换', '细节优化', '特征保持', '比例调整']
-            colors = ['暖色调', '冷色调', '中性色', '高饱和度', '低饱和度', '明亮色调']
+            # 扩展具体风格库，包含客户要求的具体风格
+            styles = [
+                '宫崎骏风格', '二次元风格', '虚拟头像', '国风', '科技感',
+                '卡通风格', '小清新风格', '光影感强', '手绘风格', '美颜后',
+                '艺术照风格', 'POP风格', '赛博朋克风格', '动漫', 'Q版',
+                '日系', '萌系', '治愈系', '水彩风格', '油画风格', '素描风格',
+                '像素风格', '蒸汽波风格', '复古风格', '未来科幻风格'
+            ]
+            moods = ['清晰', '柔和', '鲜明', '自然', '简洁', '精致', '生动', '和谐', '梦幻', '唯美', '酷炫', '温暖']
+            techniques = ['线条处理', '色彩调整', '风格转换', '细节优化', '特征保持', '比例调整', '光影渲染', '质感提升', '美颜处理']
+            colors = ['暖色调', '冷色调', '中性色', '高饱和度', '低饱和度', '明亮色调', '渐变色彩', '单色调', '对比色彩']
             characters = ['头像', '人物', '形象', '角色', '画面主体', '目标对象']
         elif task_type == 'room_decoration':
             styles = ['现代简约', '北欧风格', '新中式', '美式乡村', '工业风格', '地中海风格']
@@ -420,9 +555,10 @@ class VirtualOrderService:
         """
         计算任务金额分配
 
-        新规则：
-        - 8元及8元以上 → 全部算成10元
-        - 8元以下 → 全部算成5元
+        第一阶段：使用5、10、15、20、25随机分配
+        第二阶段：剩余金额用价值回收规则处理（仅适用于价值回收场景）
+        - 剩余金额 ≥ 8元 → 生成10元任务
+        - 剩余金额 < 8元 → 生成5元任务
 
         Args:
             total_amount: 总补贴金额
@@ -433,16 +569,51 @@ class VirtualOrderService:
         amounts = []
         remaining = total_amount
 
-        # 按新规则严格处理
-        while remaining > 0:
+        # 如果金额为0，不生成任务
+        if remaining <= 0:
+            return []
+
+        # 如果金额小于10元，按8元规则处理
+        if remaining < 10:
             if remaining >= 8:
-                # 8元及以上，生成10元任务
-                amounts.append(Decimal('10'))
-                remaining -= 10
+                return [Decimal('10')]
             else:
-                # 8元以下，生成5元任务
-                amounts.append(Decimal('5'))
-                remaining -= 5
+                return [Decimal('5')]
+
+        # 固定的金额选项：5, 10, 15, 20, 25
+        available_amounts = [Decimal('5'), Decimal('10'), Decimal('15'), Decimal('20'), Decimal('25')]
+
+        # 第一阶段：随机生成5-25之间的5的倍数任务
+        while remaining > 0:
+            if remaining <= Decimal('5'):
+                # 剩余金额小于等于5元，作为最后一个任务
+                amounts.append(remaining)
+                break
+            elif remaining < Decimal('10'):
+                # 剩余金额小于10元，按价值回收规则处理
+                if remaining >= 8:
+                    # 剩余金额 ≥ 8元，生成10元任务
+                    amounts.append(Decimal('10'))
+                else:
+                    # 剩余金额 < 8元，生成5元任务
+                    amounts.append(Decimal('5'))
+                break
+            else:
+                # 从可用金额中筛选不超过剩余金额的选项
+                possible_amounts = [amount for amount in available_amounts if amount <= remaining]
+
+                if not possible_amounts:
+                    # 如果没有合适的金额选项，按价值回收规则处理剩余金额
+                    if remaining >= 8:
+                        amounts.append(Decimal('10'))
+                    else:
+                        amounts.append(Decimal('5'))
+                    break
+
+                # 随机选择一个金额
+                selected_amount = random.choice(possible_amounts)
+                amounts.append(selected_amount)
+                remaining -= selected_amount
 
         return amounts
     
@@ -1527,6 +1698,9 @@ class VirtualOrderService:
                 )
 
             # 软删除虚拟客服记录
+            # 修改account字段以避免唯一约束冲突
+            deleted_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            cs.account = f"{cs.account}_deleted_{deleted_timestamp}"
             cs.is_deleted = True
 
             # 软删除关联的用户账号
@@ -2479,18 +2653,20 @@ class VirtualOrderService:
                 'total_amount': 0.0
             }
     
-    def import_student_subsidy_data_with_service_allocation(self, 
-                                                          student_data: List[Dict], 
+    def import_student_subsidy_data_with_service_allocation(self,
+                                                          student_data: List[Dict],
                                                           import_batch: str,
-                                                          use_service_allocation: bool = True) -> Dict[str, Any]:
+                                                          use_service_allocation: bool = True,
+                                                          generate_tasks: bool = True) -> Dict[str, Any]:
         """
         导入学生每日补贴数据并使用虚拟客服分配策略生成任务
-        
+
         Args:
             student_data: 学生数据列表
             import_batch: 导入批次号
             use_service_allocation: 是否使用虚拟客服分配策略
-            
+            generate_tasks: 是否生成虚拟任务（根据配置决定）
+
         Returns:
             Dict: 导入结果统计
         """
@@ -2560,40 +2736,42 @@ class VirtualOrderService:
             # 提交补贴池更新
             self.db.commit()
 
-            # 第二阶段：生成任务
-            if use_service_allocation and allocation_requests:
-                # 使用批量分配
-                results = self.allocator.batch_allocate_tasks(allocation_requests)
-                
-                for result in results:
-                    if result.success:
-                        total_generated_tasks += len(result.allocated_tasks)
-                    
-                # 提交任务创建
-                self.db.commit()
-            else:
-                # 使用原有方式生成任务
-                for request in allocation_requests:
-                    tasks = self.generate_virtual_tasks_for_student(
-                        request['student_id'],
-                        request['student_name'],
-                        request['total_amount']
-                    )
-                    
-                    for task in tasks:
-                        self.db.add(task)
-                    
-                    total_generated_tasks += len(tasks)
-                
-                # 提交任务创建
-                self.db.commit()
+            # 第二阶段：生成任务（根据配置决定是否生成）
+            if generate_tasks and allocation_requests:
+                if use_service_allocation:
+                    # 使用批量分配
+                    results = self.allocator.batch_allocate_tasks(allocation_requests)
+
+                    for result in results:
+                        if result.success:
+                            total_generated_tasks += len(result.allocated_tasks)
+
+                    # 提交任务创建
+                    self.db.commit()
+                else:
+                    # 使用原有方式生成任务
+                    for request in allocation_requests:
+                        tasks = self.generate_virtual_tasks_for_student(
+                            request['student_id'],
+                            request['student_name'],
+                            request['total_amount']
+                        )
+
+                        for task in tasks:
+                            self.db.add(task)
+
+                        total_generated_tasks += len(tasks)
+
+                    # 提交任务创建
+                    self.db.commit()
 
             return {
                 'import_batch': import_batch,
                 'total_students': total_students,
                 'total_subsidy': float(total_subsidy),
                 'generated_tasks': total_generated_tasks,
-                'use_service_allocation': use_service_allocation
+                'use_service_allocation': use_service_allocation,
+                'task_generation_enabled': generate_tasks
             }
 
         except Exception as e:

@@ -204,8 +204,9 @@ const CustomerService: React.FC = () => {
 
       handleCloseModal();
       fetchData();
-    } catch (error) {
-      message.error(editingRecord ? '更新客服信息失败' : '创建客服失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || (editingRecord ? '更新客服信息失败' : '创建客服失败');
+      message.error(errorMsg);
       console.error('操作失败:', error);
     }
   };
@@ -248,8 +249,9 @@ const CustomerService: React.FC = () => {
 
       setImportModalVisible(false);
       fetchData();
-    } catch (error) {
-      message.error('导入失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '导入失败';
+      message.error(errorMsg);
       console.error('导入失败:', error);
     } finally {
       setUploading(false);

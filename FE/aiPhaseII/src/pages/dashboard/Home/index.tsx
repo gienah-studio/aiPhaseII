@@ -60,8 +60,9 @@ const Home: React.FC = () => {
         message.error('统计数据格式异常');
         setStatsData(null);
       }
-    } catch (error) {
-      message.error('获取统计数据失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '获取统计数据失败';
+      message.error(errorMsg);
       console.error('获取统计数据失败:', error);
       setStatsData(null);
     } finally {
@@ -94,8 +95,9 @@ const Home: React.FC = () => {
           total: 0
         });
       }
-    } catch (error) {
-      message.error('获取学生补贴池数据失败');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '获取学生补贴池数据失败';
+      message.error(errorMsg);
       console.error('获取学生补贴池数据失败:', error);
       // 设置空数据以避免界面错误
       setStudentPools([]);

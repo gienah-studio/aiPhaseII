@@ -185,7 +185,7 @@ const StudentModule: React.FC = () => {
       fetchPoolData();
       fetchSummaryData();
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.detail || error?.message || '删除失败';
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '删除失败';
       message.error(errorMsg);
       console.error('删除学生补贴池失败:', error);
     }
@@ -237,12 +237,12 @@ const StudentModule: React.FC = () => {
         try {
           const text = await (error as any).response.data.text();
           const errorData = JSON.parse(text);
-          message.error(`导出失败: ${errorData.message || '服务器错误'}`);
+          message.error(`导出失败: ${errorData.detail || errorData.message || '服务器错误'}`);
         } catch {
           message.error('导出失败，服务器返回了无效的错误信息');
         }
       } else {
-        const errorMsg = (error as any)?.response?.data?.message || (error as any)?.message || '网络错误';
+        const errorMsg = (error as any)?.response?.data?.detail || (error as any)?.response?.data?.message || (error as any)?.message || '网络错误';
         message.error(`导出失败: ${errorMsg}`);
       }
     }

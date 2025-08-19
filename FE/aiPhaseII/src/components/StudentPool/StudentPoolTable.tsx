@@ -69,7 +69,7 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
         onDelete();
       }
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.detail || error?.message || '删除失败';
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '删除失败';
       message.error(errorMsg);
       console.error('删除学生补贴池失败:', error);
     }

@@ -26,10 +26,11 @@ class ExcelProcessor:
             raise HTTPException(status_code=400, detail=f"读取Excel文件失败: {str(e)}")
     
     @staticmethod
-    def validate_student_subsidy_data(df: pd.DataFrame) -> Tuple[List[Dict], List[str]]:
+    def validate_student_subsidy_data(df: pd.DataFrame) -> Tuple[List[Dict], List[str], int]:
         """验证学生补贴数据"""
         valid_data = []
         errors = []
+        filtered_count = 0  # 记录被过滤的记录数量
         
         # 检查必需的列
         required_columns = ['学生姓名', '补贴金额']
@@ -53,7 +54,8 @@ class ExcelProcessor:
                 try:
                     subsidy_amount = float(row['补贴金额'])
                     if subsidy_amount <= 0:
-                        errors.append(f"第{index+2}行: 补贴金额必须大于0")
+                        # 自动过滤补贴金额为0或负数的记录，不报错
+                        filtered_count += 1
                         continue
                 except (ValueError, TypeError):
                     errors.append(f"第{index+2}行: 补贴金额格式不正确")
@@ -67,7 +69,7 @@ class ExcelProcessor:
             except Exception as e:
                 errors.append(f"第{index+2}行: 数据处理错误 - {str(e)}")
         
-        return valid_data, errors
+        return valid_data, errors, filtered_count
     
     @staticmethod
     def validate_customer_service_data(df: pd.DataFrame) -> Tuple[List[Dict], List[str]]:

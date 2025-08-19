@@ -89,8 +89,9 @@ const ResourceUpload: React.FC<ResourceUploadProps> = ({
       message.success('批量上传成功！');
       setBatchFileList([]);
       form.resetFields();
-    } catch (error) {
-      message.error('批量上传失败，请重试');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '批量上传失败，请重试';
+      message.error(errorMsg);
     } finally {
       setUploading(false);
     }
@@ -126,8 +127,9 @@ const ResourceUpload: React.FC<ResourceUploadProps> = ({
       message.success('上传成功！');
       setFileList([]);
       form.resetFields();
-    } catch (error) {
-      message.error('上传失败，请重试');
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '上传失败，请重试';
+      message.error(errorMsg);
     } finally {
       setUploading(false);
     }

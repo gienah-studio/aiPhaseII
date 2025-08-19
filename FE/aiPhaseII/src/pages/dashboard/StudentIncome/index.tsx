@@ -64,7 +64,7 @@ const StudentIncome: React.FC = () => {
         status: error?.response?.status,
         data: error?.response?.data
       });
-      const errorMsg = error?.response?.data?.message || error?.message || '获取收入统计失败';
+      const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '获取收入统计失败';
       setError(errorMsg);
       message.error(errorMsg);
     } finally {
