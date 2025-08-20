@@ -508,10 +508,10 @@ class VirtualOrderTaskScheduler:
 
             logger.info(f"个人补贴任务生成完成，共生成 {generated_personal_tasks} 个任务")
 
-            # 4. 生成奖金池任务
+            # 4. 生成初始奖金池任务（按需生成1-2个）
             if today_pool.remaining_amount > 0:
                 generate_result = bonus_service.generate_bonus_pool_tasks()
-                logger.info(f"奖金池任务生成结果: {generate_result}")
+                logger.info(f"奖金池初始任务生成结果: {generate_result}")
 
             db.commit()
             logger.info("每日奖金池任务执行完成")
@@ -539,9 +539,13 @@ class VirtualOrderTaskScheduler:
 
             bonus_service = BonusPoolService(db)
 
-            # 处理过期的奖金池任务
-            result = bonus_service.process_expired_bonus_tasks()
-            logger.info(f"过期奖金池任务处理结果: {result}")
+            # 处理过期的奖金池任务（删除并重新生成）
+            expired_result = bonus_service.process_expired_bonus_tasks()
+            logger.info(f"过期奖金池任务处理结果: {expired_result}")
+
+            # 处理已完成的奖金池任务（重新生成新任务）
+            completed_result = bonus_service.process_completed_bonus_tasks()
+            logger.info(f"已完成奖金池任务处理结果: {completed_result}")
             
             db.commit()
             

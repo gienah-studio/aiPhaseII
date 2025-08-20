@@ -45,11 +45,15 @@ class StudentPoolInfo(BaseModel):
     student_id: int
     student_name: str
     total_subsidy: Decimal
-    remaining_amount: Decimal
+    remaining_amount: Decimal  # 显示的剩余金额（达标学生包含奖金池）
+    subsidy_remaining: Decimal  # 纯补贴剩余金额
+    bonus_pool_amount: Decimal  # 奖金池分配金额
     allocated_amount: Decimal
     completed_amount: Decimal
-    consumed_subsidy: Decimal
-    completion_rate: float
+    consumed_subsidy: Decimal  # 实际消耗的补贴金额
+    subsidy_completion_rate: float  # 纯补贴完成率
+    completion_rate: float  # 完成率（保持原有逻辑）
+    is_qualified: bool  # 是否达标
     agent_rebate: Optional[str]
     status: str
     import_batch: Optional[str]
