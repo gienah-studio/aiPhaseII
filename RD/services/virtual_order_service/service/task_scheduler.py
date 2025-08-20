@@ -216,8 +216,15 @@ class VirtualOrderTaskScheduler:
             # 释放过期任务金额回补贴池
             if expired_amount > 0:
                 old_remaining = pool.remaining_amount
-                pool.remaining_amount += expired_amount
-                logger.info(f"释放过期任务金额 {expired_amount} 回补贴池，剩余金额: {old_remaining} → {pool.remaining_amount}")
+                # 修复：使用正确的计算公式，而不是简单加法
+                # remaining_amount = total_subsidy - completed_amount
+                pool.remaining_amount = pool.total_subsidy - pool.completed_amount
+
+                # 确保剩余金额不超过总补贴金额
+                if pool.remaining_amount > pool.total_subsidy:
+                    pool.remaining_amount = pool.total_subsidy
+
+                logger.info(f"释放过期任务金额 {expired_amount} 回补贴池，剩余金额: {old_remaining} → {pool.remaining_amount} (基于公式: {pool.total_subsidy} - {pool.completed_amount})")
 
             # 按需生成逻辑：过期任务1:1严格替换
             # 过期几个任务就生成几个任务，不考虑金额

@@ -582,7 +582,9 @@ class BonusPoolService:
 
         if bonus_pool:
             bonus_pool.generated_amount -= recycled_amount
-            bonus_pool.remaining_amount += recycled_amount
+            # 修复：使用正确的计算公式，而不是简单加法
+            # remaining_amount = total_amount - generated_amount
+            bonus_pool.remaining_amount = bonus_pool.total_amount - bonus_pool.generated_amount
 
         self.db.commit()
 
