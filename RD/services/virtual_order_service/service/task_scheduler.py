@@ -475,11 +475,37 @@ class VirtualOrderTaskScheduler:
             today_pool = bonus_service.create_or_update_bonus_pool()
             logger.info(f"今日奖金池已创建/更新: 总金额={today_pool.total_amount}")
             
-            # 3. 生成奖金池任务
+            # 3. 为所有有补贴的学生生成个人补贴任务（使用虚拟客服分配策略）
+            logger.info("开始为学生生成个人补贴任务...")
+            from .virtual_order_service import VirtualOrderService
+            virtual_service = VirtualOrderService(db)
+
+            generated_personal_tasks = 0
+            for pool in pools:
+                if pool.remaining_amount > 0:
+                    try:
+                        # 使用虚拟客服分配策略生成个人补贴任务（按需生成）
+                        result = virtual_service.generate_virtual_tasks_with_service_allocation(
+                            pool.student_id, pool.student_name, pool.remaining_amount, on_demand=True
+                        )
+
+                        if result['success']:
+                            generated_personal_tasks += len(result['tasks'])
+                            logger.info(f"为学生 {pool.student_name} 生成了 {len(result['tasks'])} 个个人补贴任务")
+                        else:
+                            logger.error(f"为学生 {pool.student_name} 生成个人补贴任务失败: {result['message']}")
+
+                    except Exception as e:
+                        logger.error(f"为学生 {pool.student_name} 生成个人补贴任务失败: {str(e)}")
+                        continue
+
+            logger.info(f"个人补贴任务生成完成，共生成 {generated_personal_tasks} 个任务")
+
+            # 4. 生成奖金池任务
             if today_pool.remaining_amount > 0:
                 generate_result = bonus_service.generate_bonus_pool_tasks()
                 logger.info(f"奖金池任务生成结果: {generate_result}")
-            
+
             db.commit()
             logger.info("每日奖金池任务执行完成")
             

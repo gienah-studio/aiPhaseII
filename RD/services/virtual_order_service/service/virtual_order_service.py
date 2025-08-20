@@ -24,18 +24,18 @@ logger = logging.getLogger(__name__)
 
 class VirtualOrderService:
     """虚拟订单服务类"""
-    
+
     # 任务类型权重配置常量
     TASK_TYPE_WEIGHTS = {
         'avatar_redesign': 60,     # 头像改版：60%
         'room_decoration': 20,     # 房间装修：20%
         'photo_extension': 20      # 扩图：20%
     }
-    
+
     def __init__(self, db: Session, redis_client: Optional[redis.Redis] = None):
         self.db = db
         self.redis_client = redis_client
-        
+
         # nanoid字符集（对应JS的customAlphabet('1234567890abcdef', 10)）
         self.nanoid_alphabet = '1234567890abcdef'
         self.nanoid_length = 10
@@ -55,16 +55,16 @@ class VirtualOrderService:
             'orders_number': 1,
             'order_received_number': 0,
             'status': '0',  # 修改为数字状态
-            'payment_status': '0',  # 待支付
+            'payment_status': '1',  # 待支付
             'task_level': 'D',  # 修改为D级别
             'end_date_hours': 3,  # 接单截止时间：创建后3小时
             'delivery_date_hours': 3,  # 交稿时间：接单后3小时
         }
-        
+
         # 初始化分配器和管理器（延迟加载，避免循环导入）
         self._allocator = None
         self._service_manager = None
-    
+
     @property
     def allocator(self):
         """获取任务分配器实例"""
@@ -72,7 +72,7 @@ class VirtualOrderService:
             from .virtual_task_allocator import VirtualTaskAllocator
             self._allocator = VirtualTaskAllocator(self.db, self.redis_client)
         return self._allocator
-    
+
     @property
     def service_manager(self):
         """获取虚拟客服管理器实例"""
@@ -125,7 +125,7 @@ class VirtualOrderService:
             self.task_styles = ["水彩手绘风格，柔和的色彩晕染"]
             self.task_templates_data = None
             self.avatar_styles_specific = None
-    
+
     def generate_order_number(self) -> str:
         """生成订单号"""
         return generate(self.nanoid_alphabet, self.nanoid_length)
@@ -139,10 +139,10 @@ class VirtualOrderService:
         """
         # 先按权重选择任务类型
         task_type = self._select_task_type_by_weight()
-        
+
         # 根据类型生成内容
         return self.generate_task_content_by_type(task_type)
-    
+
     def _select_task_type_by_weight(self, custom_weights: Dict[str, int] = None) -> str:
         """
         根据权重配置随机选择任务类型
@@ -176,7 +176,7 @@ class VirtualOrderService:
 
         # 兜底返回第一个类型
         return task_types[0] if task_types else 'avatar_redesign'
-    
+
     def generate_task_content_by_type(self, task_type: str) -> Dict[str, str]:
         """
         根据指定类型生成任务内容
@@ -212,14 +212,14 @@ class VirtualOrderService:
                 return self._generate_template_based_content()
             else:
                 return self._generate_simple_content()
-    
+
     def _get_title_by_task_type(self, task_type: str) -> str:
         """
         根据任务类型获取对应的标题
-        
+
         Args:
             task_type: 任务类型
-            
+
         Returns:
             str: 任务标题
         """
@@ -259,7 +259,7 @@ class VirtualOrderService:
                 '扩展视觉范围创造完整场景'
             ]
         }
-        
+
         # 如果没有找到对应类型，使用默认标题
         if task_type not in title_mapping:
             # 从新配置中获取默认标题
@@ -273,7 +273,7 @@ class VirtualOrderService:
         else:
             titles = title_mapping.get(task_type)
         return random.choice(titles)
-    
+
     def _generate_specific_avatar_requirement(self) -> str:
         """
         生成具体的头像风格需求描述
@@ -436,24 +436,24 @@ class VirtualOrderService:
             techniques = ['边界扩展', '内容填充', '色彩匹配', '纹理延续', '光影处理', '透视校正']
             colors = ['原图色调', '相近色系', '渐变过渡', '色温匹配', '饱和度统一', '明暗协调']
             characters = ['画面', '场景', '图像', '构图', '背景', '环境']
-        
+
         # 获取对应模板
         templates = base_templates.get(task_type, base_templates['avatar_redesign'])
         template = random.choice(templates)
-        
+
         # 随机选择变量
         style = random.choice(styles)
         mood = random.choice(moods)
         technique = random.choice(techniques)
         color = random.choice(colors)
         character = random.choice(characters)
-        
+
         # 格式化模板
         try:
             return template.format(
-                style=style, 
-                mood=mood, 
-                technique=technique, 
+                style=style,
+                mood=mood,
+                technique=technique,
                 color=color,
                 character=character
             )
@@ -550,7 +550,7 @@ class VirtualOrderService:
             'requirement': requirement,
             'task_type': 'template'  # 模板内容标记为模板类型
         }
-    
+
     def calculate_task_amounts(self, total_amount: Decimal) -> List[Decimal]:
         """
         计算任务金额分配
@@ -699,7 +699,7 @@ class VirtualOrderService:
                         amounts.append(Decimal('5'))
 
         return amounts
-    
+
     def create_virtual_task(self, student_id: int, student_name: str, amount: Decimal) -> Optional[Tasks]:
         """
         创建单个虚拟任务
@@ -802,14 +802,14 @@ class VirtualOrderService:
                 return None
 
         return task
-    
+
     def get_student_rebate_rate(self, student_id: int) -> Decimal:
         """
         获取学生的返佣比例
-        
+
         Args:
             student_id: 学生ID（roleId）
-            
+
         Returns:
             Decimal: 返佣比例（如0.6表示60%）
         """
@@ -817,18 +817,18 @@ class VirtualOrderService:
         student = self.db.query(UserInfo).filter(
             UserInfo.roleId == student_id
         ).first()
-        
+
         if not student or not student.agentId:
             return Decimal('0.6')  # 默认返佣比例60%
-        
+
         # 查询代理信息
         agent = self.db.query(Agents).filter(
             Agents.id == student.agentId
         ).first()
-        
+
         if not agent or not agent.agent_rebate:
             return Decimal('0.6')  # 默认返佣比例60%
-        
+
         # 处理返佣比例字符串
         rebate_str = agent.agent_rebate.replace('%', '') if '%' in agent.agent_rebate else agent.agent_rebate
         try:
@@ -1199,7 +1199,7 @@ class VirtualOrderService:
         try:
             from shared.models.student_daily_achievement import StudentDailyAchievement
             from shared.models.bonus_pool import BonusPool
-            
+
             query = self.db.query(VirtualOrderPool).filter(
                 VirtualOrderPool.is_deleted == False
             )
@@ -1214,15 +1214,15 @@ class VirtualOrderService:
             # 分页查询
             offset = (page - 1) * size
             pools = query.offset(offset).limit(size).all()
-            
+
             # 获取昨天的日期（用于判断达标）
             yesterday = date.today() - timedelta(days=1)
-            
+
             # 获取今日奖金池信息
             today_bonus_pool = self.db.query(BonusPool).filter(
                 BonusPool.pool_date == date.today()
             ).first()
-            
+
             # 获取今日奖金池的任务总额
             bonus_pool_amount = Decimal('0')
             if today_bonus_pool:
@@ -1240,20 +1240,20 @@ class VirtualOrderService:
             for pool in pools:
                 # 自动同步该学生的已完成任务金额
                 self._sync_student_completed_amount(pool)
-                
+
                 # 检查学生昨天是否达标
                 yesterday_achievement = self.db.query(StudentDailyAchievement).filter(
                     StudentDailyAchievement.student_id == pool.student_id,
                     StudentDailyAchievement.achievement_date == yesterday,
                     StudentDailyAchievement.is_achieved == True
                 ).first()
-                
+
                 is_qualified = yesterday_achievement is not None
-                
+
                 # 计算显示的剩余金额
                 display_remaining = pool.remaining_amount
                 student_bonus_amount = Decimal('0')
-                
+
                 if is_qualified and bonus_pool_amount > 0:
                     # 达标学生：剩余金额包含奖金池
                     # 平均分配奖金池（或根据实际业务逻辑分配）
@@ -1261,11 +1261,11 @@ class VirtualOrderService:
                         StudentDailyAchievement.achievement_date == yesterday,
                         StudentDailyAchievement.is_achieved == True
                     ).count()
-                    
+
                     if qualified_count > 0:
                         student_bonus_amount = bonus_pool_amount / qualified_count
                         display_remaining = pool.remaining_amount + student_bonus_amount
-                
+
                 # 计算完成率（基于实际获得金额）
                 completion_rate = 0.0
                 if pool.total_subsidy > 0:
@@ -1324,7 +1324,7 @@ class VirtualOrderService:
             # 获取今天的日期范围
             today_start = datetime.combine(date.today(), datetime.min.time())
             today_end = datetime.combine(date.today(), datetime.max.time())
-            
+
             # 查询该学生今天已完成的虚拟任务
             completed_tasks = self.db.query(Tasks).filter(
                 and_(
@@ -1338,10 +1338,10 @@ class VirtualOrderService:
 
             # 计算今日实际已完成金额（任务面值）
             actual_completed_amount = sum(task.commission for task in completed_tasks)
-            
+
             # 获取学生的返佣比例
             rebate_rate = self.get_student_rebate_rate(pool.student_id)
-            
+
             # 计算实际消耗的补贴（面值 × 返佣比例）
             actual_consumed_subsidy = actual_completed_amount * rebate_rate
 
@@ -1601,21 +1601,21 @@ class VirtualOrderService:
     def get_student_available_tasks(self, student_id: int, include_bonus_pool: bool = True) -> List[Dict[str, Any]]:
         """
         获取学生可见的虚拟任务（包括普通虚拟任务和奖金池任务）
-        
+
         Args:
             student_id: 学生ID
             include_bonus_pool: 是否包含奖金池任务
-            
+
         Returns:
             List[Dict]: 可见任务列表
         """
         try:
             from datetime import date, timedelta
             from .bonus_pool_service import BonusPoolService
-            
+
             tasks = []
             now = datetime.now()
-            
+
             # 1. 获取专属虚拟任务（未过期且未接取）
             personal_tasks = self.db.query(Tasks).filter(
                 Tasks.is_virtual == True,
@@ -1624,7 +1624,7 @@ class VirtualOrderService:
                 Tasks.status == '0',  # 未接取
                 Tasks.end_date > now  # 未过期
             ).all()
-            
+
             for task in personal_tasks:
                 tasks.append({
                     'id': task.id,
@@ -1638,7 +1638,7 @@ class VirtualOrderService:
                     'task_level': task.task_level,
                     'source': task.source
                 })
-            
+
             # 2. 检查是否可以看到奖金池任务
             if include_bonus_pool:
                 bonus_service = BonusPoolService(self.db)
@@ -1652,7 +1652,7 @@ class VirtualOrderService:
                         Tasks.status == '0',  # 未接取
                         Tasks.end_date > now  # 未过期
                     ).all()
-                    
+
                     for task in bonus_tasks:
                         tasks.append({
                             'id': task.id,
@@ -1666,27 +1666,27 @@ class VirtualOrderService:
                             'task_level': task.task_level,
                             'source': '奖金池'
                         })
-            
+
             # 按创建时间倒序排序
             tasks.sort(key=lambda x: x['created_at'], reverse=True)
-            
+
             return tasks
-            
+
         except Exception as e:
             raise BusinessException(
                 code=500,
                 message=f"获取学生可见任务失败: {str(e)}",
                 data=None
             )
-    
+
     def accept_task(self, task_id: int, student_id: int) -> Dict[str, Any]:
         """
         学生接取任务
-        
+
         Args:
             task_id: 任务ID
             student_id: 学生ID
-            
+
         Returns:
             Dict: 接取结果
         """
@@ -1697,23 +1697,23 @@ class VirtualOrderService:
                 UserInfo.level == '3',
                 UserInfo.isDeleted == False
             ).first()
-            
+
             if not student:
                 raise BusinessException(code=404, msg="学生不存在")
-            
+
             # 使用行锁防止并发接取
             task = self.db.query(Tasks).filter(
                 Tasks.id == task_id,
                 Tasks.status == '0'  # 未接取
             ).with_for_update().first()
-            
+
             if not task:
                 raise BusinessException(code=404, msg="任务不存在或已被接取")
-            
+
             # 检查任务是否过期
             if task.end_date and task.end_date < datetime.now():
                 raise BusinessException(code=400, msg="任务已过期")
-            
+
             # 检查权限
             if task.is_bonus_pool:
                 # 奖金池任务需要检查达标权限
@@ -1724,16 +1724,16 @@ class VirtualOrderService:
             elif task.target_student_id and task.target_student_id != student_id:
                 # 专属任务只能由指定学生接取
                 raise BusinessException(code=403, msg="您没有权限接取此任务")
-            
+
             # 更新任务状态
             task.status = '1'  # 已接取
             task.accepted_by = str(student_id)
             task.accepted_name = student.name
             task.order_received_number = 1
             task.updated_at = datetime.now()
-            
+
             self.db.commit()
-            
+
             return {
                 'success': True,
                 'task_id': task_id,
@@ -1742,7 +1742,7 @@ class VirtualOrderService:
                 'commission': float(task.commission),
                 'delivery_date': task.delivery_date.isoformat() if task.delivery_date else None
             }
-            
+
         except BusinessException:
             self.db.rollback()
             raise
@@ -1976,7 +1976,7 @@ class VirtualOrderService:
                         self.db.flush()  # 确保更新生效
                     except Exception as img_error:
                         logger.warning(f"清理任务 {task.id} 的图片引用失败: {str(img_error)}")
-                    
+
                     # 删除任务
                     self.db.delete(task)
 
@@ -2568,36 +2568,36 @@ class VirtualOrderService:
                 message=f"同步已完成虚拟任务失败: {str(e)}",
                 data=None
             )
-    
+
     def _get_reference_image_for_task(self, task_content: Dict[str, str]) -> Optional[str]:
         """
         根据任务内容获取合适的参考图片（优化版本，包含可用性检查）
-        
+
         Args:
             task_content: 任务内容字典，包含summary、requirement和task_type
-            
+
         Returns:
             Optional[str]: 图片URL，如果没有合适的图片则返回None
         """
         try:
             # 根据任务内容判断需要的图片类型
             category_code = self._determine_image_category(task_content)
-            
+
             if not category_code:
                 logger.warning("无法确定任务类型，跳过图片分配")
                 return None
-            
+
             # 检查是否需要使用资源库
             if not self._should_use_resource_library():
                 logger.info("当前不使用资源库图片")
                 return None
-            
+
             # 调用资源库服务获取可用图片
             from services.resource_service.service.resource_service import ResourceService
             resource_service = ResourceService(self.db)
-            
+
             # 直接尝试获取可用图片，ResourceService内部会处理是否有可用图片的逻辑
-            
+
             # 先检查是否有可用图片
             image_result = resource_service.get_available_image_for_task(category_code)
 
@@ -2612,11 +2612,11 @@ class VirtualOrderService:
                 'category_code': category_code,
                 'original_filename': image_result.original_filename
             }
-            
+
         except Exception as e:
             logger.error(f"获取参考图片失败: {str(e)}")
             return None
-    
+
     def _should_use_resource_library(self) -> bool:
         """
         判断是否应该使用资源库图片
@@ -2631,37 +2631,37 @@ class VirtualOrderService:
         except Exception as e:
             logger.error(f"检查资源库使用策略失败: {str(e)}")
             return False
-    
+
     def test_task_type_distribution(self, sample_size: int = 1000) -> Dict[str, Any]:
         """
         测试任务类型分布是否符合60:20:20比例
-        
+
         Args:
             sample_size: 测试样本数量
-            
+
         Returns:
             Dict: 测试结果统计
         """
         type_counts = {task_type: 0 for task_type in self.TASK_TYPE_WEIGHTS.keys()}
-        
+
         # 生成测试样本
         for _ in range(sample_size):
             task_type = self._select_task_type_by_weight()
             type_counts[task_type] += 1
-        
+
         # 计算实际比例
         actual_percentages = {}
         for task_type, count in type_counts.items():
             percentage = (count / sample_size) * 100
             actual_percentages[task_type] = round(percentage, 2)
-        
+
         # 计算与期望比例的偏差
         expected_percentages = self.TASK_TYPE_WEIGHTS
         deviations = {}
         for task_type in type_counts.keys():
             deviation = abs(actual_percentages[task_type] - expected_percentages[task_type])
             deviations[task_type] = round(deviation, 2)
-        
+
         return {
             'sample_size': sample_size,
             'expected_percentages': expected_percentages,
@@ -2672,14 +2672,14 @@ class VirtualOrderService:
             'is_within_tolerance': max(deviations.values()) <= 5.0,  # 5%的容忍度
             'test_passed': max(deviations.values()) <= 5.0
         }
-    
+
     def _determine_image_category(self, task_content) -> Optional[str]:
         """
         根据任务内容确定需要的图片分类
-        
+
         Args:
             task_content: 任务内容字典或字符串
-            
+
         Returns:
             Optional[str]: 分类代码
         """
@@ -2695,11 +2695,11 @@ class VirtualOrderService:
             # 处理字符串类型输入
             summary = str(task_content).lower()
             requirement = ''
-        
+
         # 关键词映射到分类
         category_keywords = {
             'avatar_redesign': [
-                '头像', '人物', '肖像', '面部', '角色设计', '虚拟人物', 
+                '头像', '人物', '肖像', '面部', '角色设计', '虚拟人物',
                 'avatar', 'portrait', 'character', 'face'
             ],
             'room_decoration': [
@@ -2707,11 +2707,11 @@ class VirtualOrderService:
                 'room', 'interior', 'decoration', 'design', 'home'
             ],
             'photo_extension': [
-                '扩图', '全身', '半身', '扩展', '完整', 'extension', 
+                '扩图', '全身', '半身', '扩展', '完整', 'extension',
                 'full body', 'expand', 'complete'
             ]
         }
-        
+
         # 评分每个分类
         category_scores = {}
         for category_code, keywords in category_keywords.items():
@@ -2722,23 +2722,23 @@ class VirtualOrderService:
                 if keyword in requirement:
                     score += 1
             category_scores[category_code] = score
-        
+
         # 选择得分最高的分类
         if category_scores:
             best_category = max(category_scores.items(), key=lambda x: x[1])
             if best_category[1] > 0:  # 至少有一个关键词匹配
                 return best_category[0]
-        
+
         # 如果没有明确匹配，默认返回头像改版
         return 'avatar_redesign'
-    
+
     def mark_task_image_as_used(self, task_id: int) -> bool:
         """
         任务完成后标记使用的图片为已使用状态
-        
+
         Args:
             task_id: 任务ID
-            
+
         Returns:
             bool: 标记是否成功
         """
@@ -2747,47 +2747,47 @@ class VirtualOrderService:
             task = self.db.query(Tasks).filter(Tasks.id == task_id).first()
             if not task or not task.reference_images:
                 return False
-            
+
             # 从reference_images中提取图片ID（如果存储了的话）
             # 这里需要根据实际的存储格式来解析
             # 由于当前存储的是URL，我们需要通过URL反查图片
-            
+
             from services.resource_service.service.resource_service import ResourceService
             resource_service = ResourceService(self.db)
-            
+
             # 通过URL查找图片并标记为已使用
             from shared.models.resource_images import ResourceImages, UsageStatus
-            
+
             image = self.db.query(ResourceImages).filter(
                 ResourceImages.file_url == task.reference_images,
                 ResourceImages.usage_status == UsageStatus.available,
                 ResourceImages.is_deleted == False
             ).first()
-            
+
             if image:
                 result = resource_service.mark_image_as_used(image.id, task_id)
                 logger.info(f"任务 {task_id} 的图片 {image.id} 已标记为使用")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"标记任务图片为已使用失败: {str(e)}")
             return False
-    
+
     def get_resource_library_stats(self) -> Dict[str, Any]:
         """
         获取资源库使用统计（用于虚拟任务系统报表）
-        
+
         Returns:
             Dict: 资源库统计信息
         """
         try:
             from services.resource_service.service.resource_service import ResourceService
             resource_service = ResourceService(self.db)
-            
+
             stats = resource_service.get_resource_stats()
-            
+
             return {
                 'total_images': stats.total_images,
                 'available_images': stats.available_images,
@@ -2795,7 +2795,7 @@ class VirtualOrderService:
                 'usage_rate': round((stats.used_images / max(stats.total_images, 1)) * 100, 2),
                 'categories_stats': stats.categories_stats
             }
-            
+
         except Exception as e:
             logger.error(f"获取资源库统计失败: {str(e)}")
             return {
@@ -2807,7 +2807,7 @@ class VirtualOrderService:
             }
 
     # ================ 新增：基于虚拟客服的任务分配方法 ================
-    
+
     def generate_virtual_tasks_with_service_allocation(self,
                                                      student_id: int,
                                                      student_name: str,
@@ -2815,12 +2815,12 @@ class VirtualOrderService:
                                                      on_demand: bool = False) -> Dict[str, Any]:
         """
         使用新的虚拟客服分配策略生成虚拟任务
-        
+
         Args:
             student_id: 学生ID
             student_name: 学生姓名
             subsidy_amount: 可用补贴金额
-            
+
         Returns:
             Dict: 生成结果
         """
@@ -2828,12 +2828,12 @@ class VirtualOrderService:
             # 新逻辑：直接按补贴金额生成任务，不再除以返佣比例
             # 任务面值 = 补贴金额
             total_face_value = subsidy_amount
-            
+
             # 使用新的分配策略
             allocation_result = self.allocator.allocate_tasks_to_services(
                 total_face_value, student_id, student_name, on_demand
             )
-            
+
             if allocation_result.success:
                 return {
                     'success': True,
@@ -2849,7 +2849,7 @@ class VirtualOrderService:
                     'tasks': [],
                     'total_amount': 0.0
                 }
-                
+
         except Exception as e:
             return {
                 'success': False,
@@ -2857,7 +2857,7 @@ class VirtualOrderService:
                 'tasks': [],
                 'total_amount': 0.0
             }
-    
+
     def import_student_subsidy_data_with_service_allocation(self,
                                                           student_data: List[Dict],
                                                           import_batch: str,
@@ -3078,7 +3078,7 @@ class VirtualOrderService:
                 message=f"导入学生补贴数据失败: {str(e)}",
                 data=None
             )
-    
+
     def reallocate_student_tasks_with_service_allocation(self, student_id: int) -> Dict[str, Any]:
         """使用虚拟客服分配策略重新分配学生任务"""
         try:
@@ -3137,7 +3137,7 @@ class VirtualOrderService:
                 message=f"重新分配学生任务失败: {str(e)}",
                 data=None
             )
-    
+
     def get_allocation_statistics(self) -> Dict[str, Any]:
         """获取虚拟客服分配统计信息"""
         try:
@@ -3148,34 +3148,34 @@ class VirtualOrderService:
                 message=f"获取分配统计失败: {str(e)}",
                 data=None
             )
-    
+
     # ================ 虚拟客服管理方法代理 ================
-    
-    def create_virtual_customer_service_v2(self, name: str, account: str, 
+
+    def create_virtual_customer_service_v2(self, name: str, account: str,
                                          initial_password: str = "123456") -> Dict[str, Any]:
         """创建虚拟客服（使用新管理器）"""
         return self.service_manager.create_virtual_service(name, account, initial_password)
-    
+
     def get_virtual_customer_services_v2(self, page: int = 1, size: int = 20,
                                        status: Optional[str] = None,
                                        include_stats: bool = True) -> Dict[str, Any]:
         """获取虚拟客服列表（使用新管理器）"""
         return self.service_manager.get_virtual_services(page, size, status, include_stats)
-    
-    def update_virtual_customer_service_v2(self, cs_id: int, 
+
+    def update_virtual_customer_service_v2(self, cs_id: int,
                                          update_data: Dict[str, Any]) -> Dict[str, Any]:
         """更新虚拟客服信息（使用新管理器）"""
         return self.service_manager.update_virtual_service(cs_id, update_data)
-    
+
     def delete_virtual_customer_service_v2(self, cs_id: int) -> Dict[str, Any]:
         """删除虚拟客服并重新分配任务（使用新管理器）"""
         return self.service_manager.delete_virtual_service(cs_id)
-    
-    def batch_create_virtual_customer_services(self, 
+
+    def batch_create_virtual_customer_services(self,
                                              services_data: List[Dict[str, str]]) -> Dict[str, Any]:
         """批量创建虚拟客服"""
         return self.service_manager.batch_create_virtual_services(services_data)
-    
+
     def get_virtual_service_performance(self, cs_id: int, days: int = 30) -> Dict[str, Any]:
         """获取虚拟客服性能统计"""
         return self.service_manager.get_service_performance(cs_id, days)
