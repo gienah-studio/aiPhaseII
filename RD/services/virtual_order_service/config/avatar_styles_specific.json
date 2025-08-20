@@ -115,7 +115,7 @@
       "template": "生成宫崎骏动画风格头像：采用{technique}技法，运用{color}色彩，营造温暖治愈的动画氛围，展现{feature}特征"
     },
     {
-      "style": "二次元风格", 
+      "style": "二次元风格",
       "template": "制作二次元动漫风格头像：使用{technique}处理，配合{color}色调，突出{feature}特点，呈现精美的动漫效果"
     },
     {
@@ -144,7 +144,7 @@
     },
     {
       "style": "手绘风格",
-      "template": "绘制手工艺术风格头像：采用{technique}技法，使用{color}色彩，展现{feature}质感，体现艺术气息"
+      "template": "手绘风格头像：采用{technique}技法，使用{color}色彩，展现{feature}质感，体现艺术气息"
     },
     {
       "style": "美颜后",
