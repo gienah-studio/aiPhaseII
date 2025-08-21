@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date, time
 from typing import List
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, text
 
 from shared.database.session import SessionLocal
 from shared.models.tasks import Tasks
@@ -863,7 +863,7 @@ class VirtualOrderTaskScheduler:
                             cleanup_amount += task.commission
                             # 处理图片关联
                             db.execute(
-                                "UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id",
+                                text("UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id"),
                                 {"task_id": task.id}
                             )
                             db.delete(task)
@@ -873,7 +873,7 @@ class VirtualOrderTaskScheduler:
                         cleanup_amount += task.commission
                         # 处理图片关联
                         db.execute(
-                            "UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id",
+                            text("UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id"),
                             {"task_id": task.id}
                         )
                         db.delete(task)
@@ -922,7 +922,7 @@ class VirtualOrderTaskScheduler:
                     cleanup_amount += task.commission
                     # 处理图片关联
                     db.execute(
-                        "UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id",
+                        text("UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id"),
                         {"task_id": task.id}
                     )
                     db.delete(task)
