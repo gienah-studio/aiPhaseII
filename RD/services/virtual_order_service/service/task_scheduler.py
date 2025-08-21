@@ -296,9 +296,23 @@ class VirtualOrderTaskScheduler:
         """判断是否应该执行每日任务"""
         # 检查是否在凌晨0点到0点30分之间
         if current_time.time() >= time(0, 0) and current_time.time() <= time(0, 30):
-            # 检查今天是否已经执行过
-            if self.last_daily_task_date != date.today():
-                return True
+            # 从数据库检查今天是否已经有奖金池记录（持久化状态）
+            try:
+                from shared.models.bonus_pool import BonusPool
+                db = SessionLocal()
+                try:
+                    today_pool = db.query(BonusPool).filter(
+                        BonusPool.pool_date == date.today()
+                    ).first()
+
+                    # 如果今天还没有奖金池记录，说明还没执行过每日任务
+                    return today_pool is None
+                finally:
+                    db.close()
+            except Exception as e:
+                logger.error(f"检查每日任务执行状态失败: {str(e)}")
+                # 发生异常时，回退到内存检查（兼容性）
+                return self.last_daily_task_date != date.today()
         return False
     
     def should_run_bonus_pool_check(self, current_time: datetime) -> bool:
