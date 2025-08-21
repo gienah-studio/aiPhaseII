@@ -355,6 +355,7 @@ class VirtualOrderTaskScheduler:
     def _get_all_expired_virtual_tasks(self, db: Session, current_time: datetime) -> List[Tasks]:
         """
         获取所有过期的虚拟任务，包括状态为2但实际过期的任务
+        注意：只检查今天的任务，昨天及更早的任务已在凌晨清理
 
         Args:
             db: 数据库会话
@@ -363,11 +364,15 @@ class VirtualOrderTaskScheduler:
         Returns:
             List[Tasks]: 过期任务列表
         """
+        # 只检查今天的任务，昨天的任务已在凌晨清理
+        today = current_time.date()
+
         # 1. 常规过期任务（排除状态为1、2、3、4的任务，排除奖金池任务）
         regular_expired = db.query(Tasks).filter(
             and_(
                 Tasks.is_virtual == True,
                 Tasks.is_bonus_pool == False,  # 排除奖金池任务
+                func.date(Tasks.created_at) == today,  # 只检查今天的任务
                 Tasks.status.notin_(['1', '2', '3', '4']),
                 Tasks.end_date <= current_time
             )
@@ -378,6 +383,7 @@ class VirtualOrderTaskScheduler:
             and_(
                 Tasks.is_virtual == True,
                 Tasks.is_bonus_pool == False,  # 排除奖金池任务
+                func.date(Tasks.created_at) == today,  # 只检查今天的任务
                 Tasks.status == '2',
                 Tasks.delivery_date <= current_time
             )
@@ -481,7 +487,19 @@ class VirtualOrderTaskScheduler:
             # 2. 创建或更新今日奖金池
             today_pool = bonus_service.create_or_update_bonus_pool()
             logger.info(f"今日奖金池已创建/更新: 总金额={today_pool.total_amount}")
-            
+
+            # 2.1 处理昨天进行中的任务（status=1,2）
+            in_progress_cleanup_amount = await self._process_in_progress_tasks(db, yesterday)
+
+            # 2.2 删除昨天所有未接取的任务（status=0）
+            unaccepted_cleanup_amount = await self._cleanup_unaccepted_tasks(db, yesterday)
+
+            # 2.3 更新奖金池金额（将清理的金额加入奖金池）
+            total_cleanup_amount = in_progress_cleanup_amount + unaccepted_cleanup_amount
+            if total_cleanup_amount > 0:
+                await self._update_bonus_pool_with_cleanup_amount(db, today_pool, total_cleanup_amount)
+                logger.info(f"昨日任务清理完成: 进行中任务清理 {in_progress_cleanup_amount} 元，未接取任务清理 {unaccepted_cleanup_amount} 元，总计 {total_cleanup_amount} 元")
+
             # 3. 为所有有补贴的学生生成个人补贴任务（使用虚拟客服分配策略）
             logger.info("开始为学生生成个人补贴任务...")
             from .virtual_order_service import VirtualOrderService
@@ -791,6 +809,157 @@ class VirtualOrderTaskScheduler:
         """手动触发自动确认任务检查（用于测试）"""
         logger.info("手动触发自动确认任务检查")
         await self.check_auto_confirm_tasks()
+
+    async def _process_in_progress_tasks(self, db: Session, target_date: date) -> Decimal:
+        """
+        处理指定日期进行中的任务（status=1,2）
+
+        Args:
+            db: 数据库会话
+            target_date: 目标日期
+
+        Returns:
+            Decimal: 清理的金额
+        """
+        try:
+            from shared.models.studenttask import StudentTask
+            from .virtual_order_service import VirtualOrderService
+
+            # 查找指定日期status=1,2的虚拟任务
+            in_progress_tasks = db.query(Tasks).filter(
+                Tasks.is_virtual == True,
+                func.date(Tasks.created_at) == target_date,
+                Tasks.status.in_(['1', '2']),
+                Tasks.target_student_id.isnot(None)
+            ).all()
+
+            if not in_progress_tasks:
+                logger.info(f"{target_date} 没有发现进行中的虚拟任务")
+                return Decimal('0')
+
+            cleanup_amount = Decimal('0')
+            auto_completed_count = 0
+            deleted_count = 0
+
+            service = VirtualOrderService(db)
+
+            for task in in_progress_tasks:
+                try:
+                    # 检查是否有提交内容
+                    latest_submission = db.query(StudentTask).filter(
+                        StudentTask.task_id == task.id,
+                        StudentTask.content.isnot(None)
+                    ).order_by(StudentTask.created_at.desc()).first()
+
+                    if latest_submission:
+                        # 有提交 → 调用完整的任务完成逻辑
+                        try:
+                            result = service.update_virtual_task_completion(task.id)
+                            logger.info(f"凌晨自动完成任务: task_id={task.id}, student_id={result.get('student_id')}, commission={result.get('task_commission')}")
+                            auto_completed_count += 1
+                        except Exception as e:
+                            logger.error(f"凌晨自动完成任务失败: task_id={task.id}, error={str(e)}")
+                            # 自动完成失败，按无提交处理
+                            cleanup_amount += task.commission
+                            # 处理图片关联
+                            db.execute(
+                                "UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id",
+                                {"task_id": task.id}
+                            )
+                            db.delete(task)
+                            deleted_count += 1
+                    else:
+                        # 无提交 → 删除任务，金额进奖金池
+                        cleanup_amount += task.commission
+                        # 处理图片关联
+                        db.execute(
+                            "UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id",
+                            {"task_id": task.id}
+                        )
+                        db.delete(task)
+                        deleted_count += 1
+
+                except Exception as e:
+                    logger.error(f"处理进行中任务失败: task_id={task.id}, error={str(e)}")
+                    continue
+
+            logger.info(f"{target_date} 进行中任务处理完成: 自动完成 {auto_completed_count} 个，删除 {deleted_count} 个，清理金额 {cleanup_amount} 元")
+            return cleanup_amount
+
+        except Exception as e:
+            logger.error(f"处理进行中任务失败: {str(e)}")
+            return Decimal('0')
+
+    async def _cleanup_unaccepted_tasks(self, db: Session, target_date: date) -> Decimal:
+        """
+        删除指定日期所有未接取的任务（status=0）
+
+        Args:
+            db: 数据库会话
+            target_date: 目标日期
+
+        Returns:
+            Decimal: 清理的金额
+        """
+        try:
+            # 查找指定日期status=0的虚拟任务
+            unaccepted_tasks = db.query(Tasks).filter(
+                Tasks.is_virtual == True,
+                func.date(Tasks.created_at) == target_date,
+                Tasks.status == '0',
+                Tasks.target_student_id.isnot(None)
+            ).all()
+
+            if not unaccepted_tasks:
+                logger.info(f"{target_date} 没有发现未接取的虚拟任务")
+                return Decimal('0')
+
+            cleanup_amount = Decimal('0')
+            deleted_count = 0
+
+            for task in unaccepted_tasks:
+                try:
+                    cleanup_amount += task.commission
+                    # 处理图片关联
+                    db.execute(
+                        "UPDATE resource_images SET used_in_task_id = NULL WHERE used_in_task_id = :task_id",
+                        {"task_id": task.id}
+                    )
+                    db.delete(task)
+                    deleted_count += 1
+
+                except Exception as e:
+                    logger.error(f"删除未接取任务失败: task_id={task.id}, error={str(e)}")
+                    continue
+
+            logger.info(f"{target_date} 未接取任务清理完成: 删除 {deleted_count} 个，清理金额 {cleanup_amount} 元")
+            return cleanup_amount
+
+        except Exception as e:
+            logger.error(f"清理未接取任务失败: {str(e)}")
+            return Decimal('0')
+
+    async def _update_bonus_pool_with_cleanup_amount(self, db: Session, today_pool, cleanup_amount: Decimal):
+        """
+        将清理的金额加入奖金池
+
+        Args:
+            db: 数据库会话
+            today_pool: 今日奖金池对象
+            cleanup_amount: 清理的金额
+        """
+        try:
+            if cleanup_amount > 0:
+                # 将清理的金额加入new_expired_amount
+                today_pool.new_expired_amount += cleanup_amount
+                today_pool.total_amount += cleanup_amount
+                today_pool.remaining_amount += cleanup_amount
+                today_pool.updated_at = datetime.now()
+
+                logger.info(f"奖金池更新: 新增清理金额 {cleanup_amount} 元，总金额 {today_pool.total_amount} 元")
+
+        except Exception as e:
+            logger.error(f"更新奖金池清理金额失败: {str(e)}")
 
 # 全局调度器实例
 scheduler = VirtualOrderTaskScheduler()
