@@ -133,11 +133,12 @@ class BonusPoolService:
 
         # 计算当日完成的虚拟任务金额（面值）
         # 只统计已完成的虚拟任务（与API收入统计保持一致）
+        # 使用updated_at而不是created_at，因为我们关心的是完成时间
         completed_face_value = self.db.query(func.sum(Tasks.commission)).filter(
             Tasks.target_student_id == student_id,
             Tasks.is_virtual == True,
             Tasks.status == '4',  # 已完成
-            func.date(Tasks.created_at) == target_date
+            func.date(Tasks.updated_at) == target_date
         ).scalar() or Decimal('0')
 
         # 获取学生的返佣比例
@@ -344,6 +345,7 @@ class BonusPoolService:
             target_date = date.today() - timedelta(days=1)
 
         # 查找昨天过期的普通虚拟任务
+        # 注意：这里使用created_at是正确的，因为我们要找的是昨天创建但过期的任务
         expired_normal_tasks = self.db.query(Tasks).filter(
             Tasks.is_virtual == True,
             Tasks.is_bonus_pool == False,
@@ -1040,15 +1042,30 @@ class BonusPoolService:
                     BonusPool.pool_date == current_date
                 ).first()
 
-                # 统计当日任务数据（包括虚拟任务和奖金池任务）
-                task_stats = self.db.query(
-                    func.count(Tasks.id).label('total_generated'),
-                    func.count(case((Tasks.status == '4', 1))).label('total_completed'),
-                    func.sum(case((Tasks.status == '4', Tasks.commission), else_=0)).label('completed_amount')
+                # 统计当日生成的任务数（使用created_at）
+                generated_stats = self.db.query(
+                    func.count(Tasks.id).label('total_generated')
                 ).filter(
                     Tasks.is_virtual == True,
                     func.date(Tasks.created_at) == current_date
                 ).first()
+
+                # 统计当日完成的任务数和金额（使用updated_at）
+                completed_stats = self.db.query(
+                    func.count(case((Tasks.status == '4', 1))).label('total_completed'),
+                    func.sum(case((Tasks.status == '4', Tasks.commission), else_=0)).label('completed_amount')
+                ).filter(
+                    Tasks.is_virtual == True,
+                    Tasks.status == '4',
+                    func.date(Tasks.updated_at) == current_date
+                ).first()
+
+                # 合并统计结果
+                task_stats = type('TaskStats', (), {
+                    'total_generated': generated_stats.total_generated or 0,
+                    'total_completed': completed_stats.total_completed or 0,
+                    'completed_amount': completed_stats.completed_amount or 0
+                })()
 
                 # 统计当日学员补贴总金额（每个学员的固定补贴金额总和）
                 from shared.models.virtual_order_pool import VirtualOrderPool

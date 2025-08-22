@@ -494,12 +494,12 @@ class AuthService:
             start_time = datetime.combine(target_date, datetime.min.time())
             end_time = datetime.combine(target_date, datetime.max.time())
 
-            # 3. 查询前一天完成的任务
+            # 3. 查询前一天完成的任务（使用updated_at而不是created_at）
             completed_tasks = self.db.query(Tasks).filter(
                 and_(
                     Tasks.status == '4',  # 任务状态为已完成
-                    Tasks.created_at >= start_time,
-                    Tasks.created_at <= end_time
+                    Tasks.updated_at >= start_time,
+                    Tasks.updated_at <= end_time
                 )
             ).all()
 
