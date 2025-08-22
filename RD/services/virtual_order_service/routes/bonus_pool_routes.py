@@ -20,7 +20,7 @@ async def get_bonus_pool_status(
     try:
         service = BonusPoolService(db)
         result = service.get_bonus_pool_status(pool_date)
-        
+
         return ResponseSchema(
             code=200,
             message="获取成功",
@@ -30,6 +30,26 @@ async def get_bonus_pool_status(
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取奖金池状态失败: {str(e)}")
+
+@router.get("/summary")
+async def get_bonus_pool_summary(
+    pool_date: Optional[date] = Query(None, description="奖金池日期，默认为今天"),
+    db: Session = Depends(get_db)
+):
+    """获取奖金池汇总信息（累计金额和可抢人数）"""
+    try:
+        service = BonusPoolService(db)
+        result = service.get_bonus_pool_summary(pool_date)
+
+        return ResponseSchema(
+            code=200,
+            message="获取成功",
+            data=result
+        )
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取奖金池汇总信息失败: {str(e)}")
 
 @router.post("/dailyTask")
 async def run_daily_bonus_pool_task(

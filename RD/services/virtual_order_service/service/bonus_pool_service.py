@@ -43,6 +43,73 @@ class BonusPoolService:
         """检查奖金池功能是否启用"""
         return self.get_system_config('bonus_pool_enabled', 'true') == 'true'
 
+    def get_bonus_pool_summary(self, pool_date: date = None) -> Dict[str, Any]:
+        """
+        获取奖金池汇总信息（累计金额和可抢人数）
+
+        Args:
+            pool_date: 奖金池日期，默认为今天
+
+        Returns:
+            Dict: 包含累计金额和可抢人数的汇总信息
+        """
+        if pool_date is None:
+            pool_date = date.today()
+
+        # 获取奖金池信息
+        bonus_pool = self.db.query(BonusPool).filter(
+            BonusPool.pool_date == pool_date
+        ).first()
+
+        # 奖金池累计金额
+        total_amount = float(bonus_pool.total_amount) if bonus_pool else 0.0
+        remaining_amount = float(bonus_pool.remaining_amount) if bonus_pool else 0.0
+        generated_amount = float(bonus_pool.generated_amount) if bonus_pool else 0.0
+        completed_amount = float(bonus_pool.completed_amount) if bonus_pool else 0.0
+
+        # 计算可抢奖金池人数（昨天达标的学生数量）
+        yesterday = pool_date - timedelta(days=1)
+        qualified_students_count = self.db.query(StudentDailyAchievement).filter(
+            StudentDailyAchievement.achievement_date == yesterday,
+            StudentDailyAchievement.is_achieved == True
+        ).count()
+
+        # 获取昨天达标学生的详细信息（可选）
+        qualified_students = self.db.query(StudentDailyAchievement).filter(
+            StudentDailyAchievement.achievement_date == yesterday,
+            StudentDailyAchievement.is_achieved == True
+        ).all()
+
+        qualified_students_info = []
+        for student in qualified_students:
+            qualified_students_info.append({
+                "student_id": student.student_id,
+                "student_name": student.student_name,
+                "completed_amount": float(student.completed_amount),
+                "daily_target": float(student.daily_target)
+            })
+
+        return {
+            "pool_date": pool_date.strftime('%Y-%m-%d'),
+            "bonus_pool": {
+                "total_amount": total_amount,
+                "remaining_amount": remaining_amount,
+                "generated_amount": generated_amount,
+                "completed_amount": completed_amount,
+                "exists": bonus_pool is not None
+            },
+            "qualified_students": {
+                "count": qualified_students_count,
+                "achievement_date": yesterday.strftime('%Y-%m-%d'),
+                "students": qualified_students_info
+            },
+            "summary": {
+                "pool_total": total_amount,
+                "eligible_count": qualified_students_count,
+                "average_per_person": round(total_amount / qualified_students_count, 2) if qualified_students_count > 0 else 0.0
+            }
+        }
+
     def calculate_student_daily_achievement(self, student_id: int, target_date: date) -> Dict[str, Any]:
         """
         计算学生某日的达标情况
@@ -741,8 +808,11 @@ class BonusPoolService:
 
         # 处理每个完成的任务
         for task in completed_tasks:
+            # 获取实际完成任务的学生ID（奖金池任务的target_student_id为NULL，需要使用accepted_by）
+            actual_student_id = task.accepted_by if task.accepted_by else task.target_student_id
+
             # 获取学生返佣比例
-            rebate_rate = self.virtual_order_service.get_student_rebate_rate(task.target_student_id)
+            rebate_rate = self.virtual_order_service.get_student_rebate_rate(actual_student_id)
 
             # 计算学生实际收益和价值回收
             student_income = task.commission * rebate_rate  # 学生实际收益
@@ -816,8 +886,11 @@ class BonusPoolService:
                 'message': '奖金池不存在'
             }
 
+        # 获取实际完成任务的学生ID（奖金池任务的target_student_id为NULL，需要使用accepted_by）
+        actual_student_id = task.accepted_by if task.accepted_by else task.target_student_id
+
         # 获取学生返佣比例
-        rebate_rate = self.virtual_order_service.get_student_rebate_rate(task.target_student_id)
+        rebate_rate = self.virtual_order_service.get_student_rebate_rate(actual_student_id)
 
         # 计算学生实际收益和价值回收
         student_income = task.commission * rebate_rate  # 学生实际收益
