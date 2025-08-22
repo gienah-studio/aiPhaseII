@@ -2513,11 +2513,10 @@ class VirtualOrderService:
 
             generated_tasks_info = []
 
-            # 如果有剩余价值，先加回补贴池，然后基于补贴池剩余金额重新生成任务
+            # 如果有剩余价值，基于补贴池剩余金额重新生成任务
+            # 注意：剩余价值已经通过 pool.remaining_amount = pool.total_subsidy - pool.consumed_subsidy 自动计算包含
             if remaining_task_value > Decimal('0'):
-                # 关键修复：把剩余价值加回补贴池
-                pool.remaining_amount += remaining_task_value
-                logger.info(f"剩余价值 {remaining_task_value} 已加回补贴池，当前剩余: {pool.remaining_amount}")
+                logger.info(f"任务剩余价值: {remaining_task_value}, 补贴池当前剩余: {pool.remaining_amount}")
 
                 # 基于补贴池剩余金额决定是否生成新任务
                 if pool.remaining_amount > Decimal('0'):
