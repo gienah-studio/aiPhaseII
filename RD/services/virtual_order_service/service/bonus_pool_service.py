@@ -809,7 +809,14 @@ class BonusPoolService:
         # 处理每个完成的任务
         for task in completed_tasks:
             # 获取实际完成任务的学生ID（奖金池任务的target_student_id为NULL，需要使用accepted_by）
-            actual_student_id = task.accepted_by if task.accepted_by else task.target_student_id
+            if task.accepted_by:
+                try:
+                    actual_student_id = int(task.accepted_by)  # accepted_by是字符串，需要转换为整数
+                except (ValueError, TypeError):
+                    logger.error(f"奖金池任务 {task.id} 的accepted_by字段无效: {task.accepted_by}")
+                    actual_student_id = task.target_student_id
+            else:
+                actual_student_id = task.target_student_id
 
             # 获取学生返佣比例
             rebate_rate = self.virtual_order_service.get_student_rebate_rate(actual_student_id)
@@ -887,7 +894,14 @@ class BonusPoolService:
             }
 
         # 获取实际完成任务的学生ID（奖金池任务的target_student_id为NULL，需要使用accepted_by）
-        actual_student_id = task.accepted_by if task.accepted_by else task.target_student_id
+        if task.accepted_by:
+            try:
+                actual_student_id = int(task.accepted_by)  # accepted_by是字符串，需要转换为整数
+            except (ValueError, TypeError):
+                logger.error(f"奖金池任务 {task.id} 的accepted_by字段无效: {task.accepted_by}")
+                actual_student_id = task.target_student_id
+        else:
+            actual_student_id = task.target_student_id
 
         # 获取学生返佣比例
         rebate_rate = self.virtual_order_service.get_student_rebate_rate(actual_student_id)
