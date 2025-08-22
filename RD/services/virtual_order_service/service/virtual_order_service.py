@@ -1396,14 +1396,14 @@ class VirtualOrderService:
             today_start = datetime.combine(date.today(), datetime.min.time())
             today_end = datetime.combine(date.today(), datetime.max.time())
 
-            # 查询该学生今天已完成的虚拟任务
+            # 查询该学生今天已完成的虚拟任务（使用updated_at因为我们关心完成时间）
             completed_tasks = self.db.query(Tasks).filter(
                 and_(
                     Tasks.is_virtual.is_(True),
                     Tasks.target_student_id == pool.student_id,
                     Tasks.status == '4',  # 已完成状态
-                    Tasks.created_at >= today_start,  # 今天创建的任务
-                    Tasks.created_at <= today_end
+                    Tasks.updated_at >= today_start,  # 今天完成的任务
+                    Tasks.updated_at <= today_end
                 )
             ).all()
 
@@ -2094,10 +2094,9 @@ class VirtualOrderService:
         """
         try:
             from sqlalchemy import and_, func
-            from sqlalchemy.sql import case
             from shared.models.tasks import Tasks
             from shared.models.userinfo import UserInfo
-            from shared.models.original_user import OriginalUser
+
             import pandas as pd
             import io
 
@@ -2122,7 +2121,7 @@ class VirtualOrderService:
                     Tasks.accepted_by.like(f'%{student.roleId}%')  # 该学生接取的任务
                 ]
 
-                # 添加日期过滤
+                # 添加日期过滤（对于真实任务，使用created_at统计总数是合理的）
                 if start_date:
                     start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
                     task_conditions.append(Tasks.created_at >= start_datetime)
@@ -2130,17 +2129,41 @@ class VirtualOrderService:
                     end_datetime = datetime.strptime(end_date, '%Y-%m-%d')
                     task_conditions.append(Tasks.created_at <= end_datetime)
 
-                # 统计该学生的任务数据
-                task_stats = self.db.query(
+                # 分别统计总任务和已完成任务（使用不同的时间字段）
+                # 总任务数和总收入（基于创建时间）
+                total_stats = self.db.query(
                     func.count(Tasks.id).label('total_tasks'),
-                    func.sum(Tasks.commission).label('total_income'),
-                    func.count(
-                        case((Tasks.status == '已完成', 1))
-                    ).label('completed_tasks'),
-                    func.sum(
-                        case((Tasks.status == '已完成', Tasks.commission), else_=0)
-                    ).label('completed_income')
+                    func.sum(Tasks.commission).label('total_income')
                 ).filter(and_(*task_conditions)).first()
+
+                # 已完成任务的条件（基于完成时间）
+                completed_conditions = [
+                    Tasks.is_virtual.is_(False),  # 只查询真实任务
+                    Tasks.accepted_by.like(f'%{student.roleId}%'),  # 该学生接取的任务
+                    Tasks.status == '已完成'  # 已完成状态
+                ]
+
+                # 为已完成任务添加日期过滤（使用updated_at）
+                if start_date:
+                    start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+                    completed_conditions.append(Tasks.updated_at >= start_datetime)
+                if end_date:
+                    end_datetime = datetime.strptime(end_date, '%Y-%m-%d')
+                    completed_conditions.append(Tasks.updated_at <= end_datetime)
+
+                # 已完成任务统计（基于完成时间）
+                completed_stats = self.db.query(
+                    func.count(Tasks.id).label('completed_tasks'),
+                    func.sum(Tasks.commission).label('completed_income')
+                ).filter(and_(*completed_conditions)).first()
+
+                # 合并统计结果
+                task_stats = type('TaskStats', (), {
+                    'total_tasks': total_stats.total_tasks or 0,
+                    'total_income': total_stats.total_income or 0,
+                    'completed_tasks': completed_stats.completed_tasks or 0,
+                    'completed_income': completed_stats.completed_income or 0
+                })()
 
                 # 为每个学生创建一个记录
                 class StudentResult:
@@ -2364,14 +2387,14 @@ class VirtualOrderService:
                 Tasks.accepted_by.isnot(None)  # 有接取人的任务
             ]
 
-            # 添加日期过滤
+            # 添加日期过滤（使用updated_at因为我们查询的是已完成的任务）
             if start_date:
                 start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
-                query_conditions.append(Tasks.created_at >= start_datetime)
+                query_conditions.append(Tasks.updated_at >= start_datetime)
 
             if end_date:
                 end_datetime = datetime.strptime(end_date, '%Y-%m-%d')
-                query_conditions.append(Tasks.created_at <= end_datetime)
+                query_conditions.append(Tasks.updated_at <= end_datetime)
 
             # 统计查询
             total_tasks = self.db.query(Tasks).filter(and_(*query_conditions)).count()
@@ -2861,7 +2884,7 @@ class VirtualOrderService:
             ).first()
 
             if image:
-                result = resource_service.mark_image_as_used(image.id, task_id)
+                resource_service.mark_image_as_used(image.id, task_id)
                 logger.info(f"任务 {task_id} 的图片 {image.id} 已标记为使用")
                 return True
 
@@ -3605,7 +3628,6 @@ class VirtualOrderService:
         # 生成房间特定的标题
         if hasattr(self, 'task_titles_data') and self.task_titles_data and 'room_decoration' in self.task_titles_data:
             # 从现有标题中选择一个，然后添加房间类型
-            base_title = random.choice(self.task_titles_data['room_decoration'][:50])  # 取前50个
             title = f"{room_type}{style}风格设计"
         else:
             title = f"{room_type}{style}风格装修设计"
