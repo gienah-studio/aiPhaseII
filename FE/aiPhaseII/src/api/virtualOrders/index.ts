@@ -1,6 +1,7 @@
 import request from '../common/request';
 import type {
   VirtualOrderStats,
+  VirtualOrderDailyStats,
   StudentPoolListResponse,
   StudentPoolParams,
   VirtualCustomerServiceListResponse,
@@ -25,6 +26,16 @@ import type { ApiResponse } from '../common/types';
  */
 export const getVirtualOrderStats = async (): Promise<any> => {
   const response = await request.get<any>('/virtualOrders/stats');
+  return response.data;
+};
+
+/**
+ * 获取虚拟订单每日统计信息
+ */
+export const getVirtualOrderDailyStats = async (targetDate?: string): Promise<VirtualOrderDailyStats> => {
+  const response = await request.get<VirtualOrderDailyStats>('/virtualOrders/stats/daily', {
+    params: targetDate ? { target_date: targetDate } : undefined
+  });
   return response.data;
 };
 

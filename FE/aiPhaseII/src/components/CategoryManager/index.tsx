@@ -304,55 +304,58 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
 
         <Divider />
 
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            block
-            onClick={handleAddCategory}
-            loading={actionLoading}
-          >
-            新增分类
-          </Button>
-
-          <Button
-            icon={<EyeOutlined />}
-            block
-            disabled={!selectedCategory}
-            onClick={handleViewCategory}
-          >
-            查看详情
-          </Button>
-
-          <Button
-            icon={<EditOutlined />}
-            block
-            disabled={!selectedCategory}
-            onClick={handleEditCategory}
-            loading={actionLoading}
-          >
-            编辑分类
-          </Button>
-
-          <Popconfirm
-            title="确定删除该分类吗？"
-            description="删除后无法恢复，且该分类下不能有资源或子分类。"
-            onConfirm={handleDeleteCategory}
-            disabled={!selectedCategory}
-            okText="确定"
-            cancelText="取消"
-          >
+        {/* 临时隐藏分类管理按钮 */}
+        <div style={{ display: 'none' }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
             <Button
-              danger
-              icon={<DeleteOutlined />}
+              type="primary"
+              icon={<PlusOutlined />}
               block
-              disabled={!selectedCategory}
+              onClick={handleAddCategory}
               loading={actionLoading}
             >
-              删除分类
+              新增分类
             </Button>
-          </Popconfirm>
-        </Space>
+
+            <Button
+              icon={<EyeOutlined />}
+              block
+              disabled={!selectedCategory}
+              onClick={handleViewCategory}
+            >
+              查看详情
+            </Button>
+
+            <Button
+              icon={<EditOutlined />}
+              block
+              disabled={!selectedCategory}
+              onClick={handleEditCategory}
+              loading={actionLoading}
+            >
+              编辑分类
+            </Button>
+
+            <Popconfirm
+              title="确定删除该分类吗？"
+              description="删除后无法恢复，且该分类下不能有资源或子分类。"
+              onConfirm={handleDeleteCategory}
+              disabled={!selectedCategory}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                block
+                disabled={!selectedCategory}
+                loading={actionLoading}
+              >
+                删除分类
+              </Button>
+            </Popconfirm>
+          </Space>
+        </div>
 
       </Card>
 

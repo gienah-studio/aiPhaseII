@@ -101,6 +101,66 @@
   margin-bottom: 20px;
 }
 
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.chartTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dateInfo {
+  font-size: 14px;
+  color: #666;
+  padding: 4px 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  border: 1px solid #d9d9d9;
+}
+
+.refreshButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #1890ff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 4px 12px;
+  height: 32px;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.refreshButton:hover {
+  color: #40a9ff;
+  border-color: #40a9ff;
+  background-color: #f6ffed;
+  transform: translateY(-1px);
+}
+
+.refreshButton:active {
+  transform: translateY(0);
+}
+
+/* 统计区域样式 */
+.statsSection {
+  margin-bottom: 20px;
+}
+
 /* 表格区域样式 */
 .tableSection {
   margin-bottom: 20px;
@@ -146,6 +206,7 @@
   }
 
   .chartSection,
+  .statsSection,
   .tableSection {
     margin-bottom: 16px;
   }
@@ -158,6 +219,33 @@
 
   .taskGenerationStatus {
     font-size: 11px;
+  }
+
+  .chartHeader {
+    padding: 12px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .chartTitle {
+    font-size: 15px;
+  }
+
+  .headerActions {
+    align-self: flex-end;
+    gap: 8px;
+  }
+
+  .dateInfo {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+
+  .refreshButton {
+    font-size: 12px;
+    height: 28px;
+    padding: 2px 8px;
   }
 }
 
@@ -179,5 +267,24 @@
 
   .taskGenerationStatus {
     font-size: 10px;
+  }
+
+  .chartTitle {
+    font-size: 14px;
+  }
+
+  .headerActions {
+    gap: 6px;
+  }
+
+  .dateInfo {
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+
+  .refreshButton {
+    font-size: 11px;
+    height: 26px;
+    padding: 2px 6px;
   }
 }

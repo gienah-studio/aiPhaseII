@@ -437,8 +437,13 @@ class AuthService:
 
         return user_info
 
-    def get_all_students_income_stats(self, page: int = 1, size: int = 10) -> dict:
+    def get_all_students_income_stats(self, page: int = 1, size: int = 10, stat_date: str = None) -> dict:
         """获取所有学员收入统计列表
+
+        Args:
+            page: 页码
+            size: 每页大小
+            stat_date: 统计日期，格式：YYYY-MM-DD，默认为昨天
 
         Returns:
             dict: 所有学员收入统计数据
@@ -456,16 +461,38 @@ class AuthService:
 
             if not students:
                 print("[DEBUG] 没有找到学员，返回空列表")
+                # 计算统计日期
+                if stat_date:
+                    try:
+                        target_date = datetime.strptime(stat_date, '%Y-%m-%d').date()
+                    except ValueError:
+                        target_date = datetime.now().date() - timedelta(days=1)
+                else:
+                    target_date = datetime.now().date() - timedelta(days=1)
+
                 return {
                     "students": [],
                     "total": 0,
-                    "stat_date": (datetime.now().date() - timedelta(days=1)).strftime('%Y-%m-%d')
+                    "stat_date": target_date.strftime('%Y-%m-%d')
                 }
 
-            # 2. 计算前一天的日期范围
-            yesterday = datetime.now().date() - timedelta(days=1)
-            start_time = datetime.combine(yesterday, datetime.min.time())
-            end_time = datetime.combine(yesterday, datetime.max.time())
+            # 2. 计算统计日期范围
+            if stat_date:
+                # 使用指定日期
+                try:
+                    target_date = datetime.strptime(stat_date, '%Y-%m-%d').date()
+                except ValueError:
+                    raise BusinessException(
+                        code=400,
+                        message="日期格式错误，请使用 YYYY-MM-DD 格式",
+                        data=None
+                    )
+            else:
+                # 默认使用昨天
+                target_date = datetime.now().date() - timedelta(days=1)
+
+            start_time = datetime.combine(target_date, datetime.min.time())
+            end_time = datetime.combine(target_date, datetime.max.time())
 
             # 3. 查询前一天完成的任务
             completed_tasks = self.db.query(Tasks).filter(
@@ -574,7 +601,7 @@ class AuthService:
                 student_stat = {
                     "student_id": student.roleId,
                     "student_name": student.name or "",
-                    "yesterday_income": str(original_commission),  # 原始佣金总额
+                    "yesterday_income": str(original_commission),  # 昨天任务的原始佣金总额
                     "yesterday_completed_orders": completed_orders,
                     "commission_rate": agent_rebate if completed_orders > 0 else "N/A",  # 有任务时显示返佣比例
                     "actual_income": str(total_commission),  # 实际到手金额
@@ -602,7 +629,7 @@ class AuthService:
                 "page": page,
                 "size": size,
                 "total_pages": (total_students + size - 1) // size,  # 向上取整
-                "stat_date": yesterday.strftime('%Y-%m-%d')
+                "stat_date": target_date.strftime('%Y-%m-%d')
             }
 
             print(f"[DEBUG] 返回结果: 第{page}页，共 {len(paginated_students)} 个学员，总计 {total_students} 个学员")
@@ -614,6 +641,81 @@ class AuthService:
             raise BusinessException(
                 code=500,
                 message=f"获取学员收入统计失败: {str(e)}",
+                data=None
+            )
+
+    def adjust_student_subsidy_pool(self, student_id: int, adjustment_amount: float, reason: str = "手动调整") -> dict:
+        """
+        手动调整学员补贴池金额（用于修复误删任务等情况）
+
+        Args:
+            student_id: 学员ID
+            adjustment_amount: 调整金额（正数为增加，负数为减少）
+            reason: 调整原因
+
+        Returns:
+            dict: 调整结果
+        """
+        try:
+            from shared.models.virtual_order_pool import VirtualOrderPool
+            from decimal import Decimal
+
+            # 查找学员补贴池
+            pool = self.db.query(VirtualOrderPool).filter(
+                VirtualOrderPool.student_id == student_id,
+                VirtualOrderPool.is_deleted == False
+            ).first()
+
+            if not pool:
+                raise BusinessException(
+                    code=404,
+                    message="未找到该学员的补贴池",
+                    data=None
+                )
+
+            # 记录调整前的金额
+            old_remaining = float(pool.remaining_amount)
+            old_total = float(pool.total_subsidy)
+
+            # 执行调整
+            adjustment_decimal = Decimal(str(adjustment_amount))
+            pool.remaining_amount += adjustment_decimal
+
+            # 确保金额不为负数
+            if pool.remaining_amount < 0:
+                pool.remaining_amount = Decimal('0')
+
+            # 更新时间
+            from datetime import datetime
+            pool.updated_at = datetime.now()
+
+            self.db.commit()
+
+            return {
+                "student_id": student_id,
+                "student_name": pool.student_name,
+                "adjustment": {
+                    "amount": adjustment_amount,
+                    "reason": reason,
+                    "adjusted_at": datetime.now().isoformat()
+                },
+                "before": {
+                    "total_subsidy": old_total,
+                    "remaining_amount": old_remaining
+                },
+                "after": {
+                    "total_subsidy": float(pool.total_subsidy),
+                    "remaining_amount": float(pool.remaining_amount)
+                }
+            }
+
+        except BusinessException:
+            raise
+        except Exception as e:
+            self.db.rollback()
+            raise BusinessException(
+                code=500,
+                message=f"调整补贴池金额失败: {str(e)}",
                 data=None
             )
 

@@ -9,20 +9,25 @@ import {
   Spin,
   Button
 } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { useAuth } from '../../../hooks';
 import {
   Loading,
   VirtualOrderStatsChart,
-  StudentPoolTable
+  StudentPoolTable,
+  DailySubsidyStatsTable
 } from '../../../components';
 import {
-  getVirtualOrderStats,
+  getVirtualOrderDailyStats,
   getStudentPools,
   getVirtualTaskGenerationConfig,
   updateVirtualTaskGenerationConfig,
+  getBonusPoolSummary,
   type VirtualOrderStats,
+  type VirtualOrderDailyStats,
   type StudentPoolItem,
-  type VirtualTaskGenerationConfig
+  type VirtualTaskGenerationConfig,
+  type BonusPoolSummary
 } from '../../../api';
 import styles from './index.module.css';
 
@@ -33,6 +38,8 @@ const Home: React.FC = () => {
 
   // 数据状态
   const [statsData, setStatsData] = useState<VirtualOrderStats | null>(null);
+  const [dailyStatsData, setDailyStatsData] = useState<VirtualOrderDailyStats | null>(null);
+  const [bonusPoolData, setBonusPoolData] = useState<BonusPoolSummary | null>(null);
   const [studentPools, setStudentPools] = useState<StudentPoolItem[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const [poolsLoading, setPoolsLoading] = useState(false);
@@ -47,27 +54,64 @@ const Home: React.FC = () => {
   const [taskGenerationLoading, setTaskGenerationLoading] = useState(false);
 
   // 获取虚拟订单统计数据
-  const fetchStatsData = async () => {
+  const fetchStatsData = async (targetDate?: string) => {
     try {
       setStatsLoading(true);
-      const data = await getVirtualOrderStats();
+      
+      // 并行获取每日统计和奖金池数据
+      const [dailyData, bonusData] = await Promise.all([
+        getVirtualOrderDailyStats(targetDate),
+        getBonusPoolSummary(targetDate)
+      ]);
 
       // 验证数据结构
-      if (data && typeof data === 'object') {
-        setStatsData(data);
+      if (dailyData && typeof dailyData === 'object') {
+        setDailyStatsData(dailyData);
+        
+        // 将每日统计数据转换为图表组件期望的格式，并添加奖金池数据
+        const transformedData: VirtualOrderStats = {
+          totalStudents: dailyData.dailyActiveStudents,
+          totalSubsidy: dailyData.dailySubsidy,
+          totalTasksGenerated: dailyData.dailyTasksGenerated,
+          totalTasksCompleted: dailyData.dailyTasksCompleted,
+          completionRate: dailyData.dailyCompletionRate,
+          // 新增奖金池数据（使用正确的驼峰命名字段）
+          bonusPoolTotal: bonusData?.summary?.poolTotal || 0,
+          qualifiedStudentsCount: bonusData?.summary?.eligibleCount || 0
+        };
+        setStatsData(transformedData);
       } else {
-        console.error('统计数据格式异常:', data);
+        console.error('统计数据格式异常:', dailyData);
         message.error('统计数据格式异常');
         setStatsData(null);
+        setDailyStatsData(null);
+      }
+      
+      // 设置奖金池数据
+      if (bonusData && typeof bonusData === 'object') {
+        setBonusPoolData(bonusData);
+        console.log('奖金池数据获取成功:', bonusData);
+        console.log('奖金池总额:', bonusData?.summary?.poolTotal);
+        console.log('符合条件人数:', bonusData?.summary?.eligibleCount);
+      } else {
+        console.error('奖金池数据格式异常:', bonusData);
+        setBonusPoolData(null);
       }
     } catch (error: any) {
       const errorMsg = error?.response?.data?.detail || error?.response?.data?.message || error?.message || '获取统计数据失败';
       message.error(errorMsg);
       console.error('获取统计数据失败:', error);
       setStatsData(null);
+      setDailyStatsData(null);
+      setBonusPoolData(null);
     } finally {
       setStatsLoading(false);
     }
+  };
+
+  // 刷新统计数据
+  const handleRefreshStats = () => {
+    fetchStatsData(); // 重新获取今日数据
   };
 
   // 获取学生补贴池数据
@@ -237,10 +281,31 @@ const Home: React.FC = () => {
 
       {/* 虚拟订单统计图表 */}
       <div className={styles.chartSection}>
+        <div className={styles.chartHeader}>
+          <h3 className={styles.chartTitle}>今日数据统计概况</h3>
+          <div className={styles.headerActions}>
+            {dailyStatsData && (
+              <span className={styles.dateInfo}>
+                {dailyStatsData.date}
+              </span>
+            )}
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleRefreshStats}
+              loading={statsLoading}
+              className={styles.refreshButton}
+              type="text"
+              title="刷新统计数据"
+            >
+              刷新
+            </Button>
+          </div>
+        </div>
         {statsData ? (
           <VirtualOrderStatsChart
             data={statsData}
             loading={statsLoading}
+            isDailyStats={true}
           />
         ) : (
           <Card>
@@ -250,6 +315,11 @@ const Home: React.FC = () => {
             </div>
           </Card>
         )}
+      </div>
+
+      {/* 每日补贴统计列表 */}
+      <div className={styles.statsSection}>
+        <DailySubsidyStatsTable />
       </div>
 
       {/* 学生补贴池列表 */}

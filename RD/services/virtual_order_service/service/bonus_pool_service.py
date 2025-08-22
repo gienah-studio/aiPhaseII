@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, case
 import logging
 
 logger = logging.getLogger(__name__)
@@ -1006,3 +1006,254 @@ class BonusPoolService:
                 'completed': tasks_stats.completed_tasks or 0
             }
         }
+
+    def get_daily_subsidy_stats(self, start_date: date = None, end_date: date = None, days: int = 7) -> Dict[str, Any]:
+        """
+        获取每日补贴统计数据
+
+        Args:
+            start_date: 开始日期，默认为7天前
+            end_date: 结束日期，默认为今天
+            days: 查询天数，当start_date和end_date都为None时使用，默认7天
+
+        Returns:
+            Dict: 每日补贴统计数据
+        """
+        try:
+            # 确定查询日期范围
+            if end_date is None:
+                end_date = date.today()
+
+            if start_date is None:
+                start_date = end_date - timedelta(days=days-1)
+
+            # 确保日期范围合理
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
+
+            daily_stats = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                # 获取当日奖金池数据
+                bonus_pool = self.db.query(BonusPool).filter(
+                    BonusPool.pool_date == current_date
+                ).first()
+
+                # 统计当日任务数据（包括虚拟任务和奖金池任务）
+                task_stats = self.db.query(
+                    func.count(Tasks.id).label('total_generated'),
+                    func.count(case((Tasks.status == '4', 1))).label('total_completed'),
+                    func.sum(case((Tasks.status == '4', Tasks.commission), else_=0)).label('completed_amount')
+                ).filter(
+                    Tasks.is_virtual == True,
+                    func.date(Tasks.created_at) == current_date
+                ).first()
+
+                # 统计当日学员补贴总金额（每个学员的固定补贴金额总和）
+                from shared.models.virtual_order_pool import VirtualOrderPool
+                subsidy_stats = self.db.query(
+                    func.count(VirtualOrderPool.id).label('total_students'),
+                    func.sum(VirtualOrderPool.total_subsidy).label('total_subsidy_amount')
+                ).filter(
+                    VirtualOrderPool.is_deleted == False,
+                    func.date(VirtualOrderPool.created_at) <= current_date  # 在当日或之前创建的补贴池
+                ).first()
+
+                # 统计当日学生达标情况
+                achievement_stats = self.db.query(
+                    func.count(StudentDailyAchievement.id).label('total_students'),
+                    func.count(case((StudentDailyAchievement.is_achieved == True, 1))).label('achieved_students'),
+                    func.sum(StudentDailyAchievement.completed_amount).label('total_completed_amount')
+                ).filter(
+                    StudentDailyAchievement.achievement_date == current_date
+                ).first()
+
+                # 计算统计数据
+                total_generated = task_stats.total_generated or 0
+                total_completed = task_stats.total_completed or 0
+                actual_earned_amount = float(task_stats.completed_amount or 0)
+
+                # 计算当日补贴总金额（所有学员的固定补贴金额总和）
+                total_subsidy_amount = float(subsidy_stats.total_subsidy_amount or 0)
+                active_students_count = subsidy_stats.total_students or 0
+
+                # 计算完成率
+                completion_rate = 0.0
+                if total_generated > 0:
+                    completion_rate = round((total_completed / total_generated) * 100, 2)
+
+                # 奖金池相关数据
+                bonus_pool_data = {
+                    'total_amount': 0.0,
+                    'remaining_amount': 0.0,
+                    'generated_amount': 0.0,
+                    'completed_amount': 0.0
+                }
+
+                if bonus_pool:
+                    bonus_pool_data = {
+                        'total_amount': float(bonus_pool.total_amount),
+                        'remaining_amount': float(bonus_pool.remaining_amount),
+                        'generated_amount': float(bonus_pool.generated_amount),
+                        'completed_amount': float(bonus_pool.completed_amount)
+                    }
+
+                daily_stat = {
+                    'date': current_date.isoformat(),
+                    'subsidy_total_amount': total_subsidy_amount,  # 每天补贴总金额（所有学员固定补贴总和）
+                    'remaining_amount': bonus_pool_data['remaining_amount'],  # 剩余金额（奖金池）
+                    'actual_earned_amount': actual_earned_amount,  # 实际获得金额
+                    'completion_rate': completion_rate,  # 每天完成率
+                    'tasks_generated': total_generated,  # 每天生成任务数
+                    'tasks_completed': total_completed,  # 完成数
+                    'active_students_count': active_students_count,  # 当日有补贴的学员数量
+                    'bonus_pool': bonus_pool_data,  # 奖金池详细数据
+                    'achievement_stats': {
+                        'total_students': achievement_stats.total_students or 0,
+                        'achieved_students': achievement_stats.achieved_students or 0,
+                        'total_completed_amount': float(achievement_stats.total_completed_amount or 0)
+                    }
+                }
+
+                daily_stats.append(daily_stat)
+                current_date += timedelta(days=1)
+
+            # 将日期倒序排列，最新的日期在前
+            daily_stats.reverse()
+
+            # 计算汇总统计
+            total_subsidy = sum(stat['subsidy_total_amount'] for stat in daily_stats)
+            total_earned = sum(stat['actual_earned_amount'] for stat in daily_stats)
+            total_generated = sum(stat['tasks_generated'] for stat in daily_stats)
+            total_completed = sum(stat['tasks_completed'] for stat in daily_stats)
+
+            overall_completion_rate = 0.0
+            if total_generated > 0:
+                overall_completion_rate = round((total_completed / total_generated) * 100, 2)
+
+            return {
+                'date_range': {
+                    'start_date': start_date.isoformat(),
+                    'end_date': end_date.isoformat(),
+                    'days': len(daily_stats)
+                },
+                'daily_stats': daily_stats,
+                'summary': {
+                    'total_subsidy_amount': total_subsidy,
+                    'total_earned_amount': total_earned,
+                    'total_tasks_generated': total_generated,
+                    'total_tasks_completed': total_completed,
+                    'overall_completion_rate': overall_completion_rate
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"获取每日补贴统计失败: {e}")
+            raise BusinessException(
+                code=500,
+                message=f"获取每日补贴统计失败: {str(e)}",
+                data=None
+            )
+
+    def export_daily_subsidy_stats(self, start_date: date = None, end_date: date = None, days: int = 7) -> bytes:
+        """
+        导出每日补贴统计数据为Excel
+
+        Args:
+            start_date: 开始日期，默认为7天前
+            end_date: 结束日期，默认为今天
+            days: 查询天数，当start_date和end_date都为None时使用，默认7天
+
+        Returns:
+            bytes: Excel文件内容
+        """
+        try:
+            import pandas as pd
+            import io
+
+            # 获取统计数据
+            stats_data = self.get_daily_subsidy_stats(start_date, end_date, days)
+
+            # 准备Excel数据 - 完全参考studentIncome/export的方式
+            data = []
+            for daily_stat in stats_data['daily_stats']:
+                data.append({
+                    '日期': daily_stat['date'],
+                    '补贴总金额': float(daily_stat['subsidy_total_amount']),
+                    '剩余金额': float(daily_stat['remaining_amount']),
+                    '实际获得金额': float(daily_stat['actual_earned_amount']),
+                    '完成率(%)': daily_stat['completion_rate'],
+                    '生成任务数': daily_stat['tasks_generated'],
+                    '完成任务数': daily_stat['tasks_completed'],
+                    '补贴学员数': daily_stat.get('active_students_count', 0),
+                    '奖金池总金额': float(daily_stat['bonus_pool']['total_amount']),
+                    '奖金池已生成金额': float(daily_stat['bonus_pool']['generated_amount']),
+                    '奖金池已完成金额': float(daily_stat['bonus_pool']['completed_amount']),
+                    '达标学生数': daily_stat['achievement_stats']['achieved_students'],
+                    '总学生数': daily_stat['achievement_stats']['total_students'],
+                    '导出时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+            # 如果没有数据，创建一个示例行
+            if not data:
+                data.append({
+                    '日期': date.today().isoformat(),
+                    '补贴总金额': 0.0,
+                    '剩余金额': 0.0,
+                    '实际获得金额': 0.0,
+                    '完成率(%)': 0.0,
+                    '生成任务数': 0,
+                    '完成任务数': 0,
+                    '补贴学员数': 0,
+                    '奖金池总金额': 0.0,
+                    '奖金池已生成金额': 0.0,
+                    '奖金池已完成金额': 0.0,
+                    '达标学生数': 0,
+                    '总学生数': 0,
+                    '导出时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+            # 创建DataFrame
+            df = pd.DataFrame(data)
+
+            # 创建Excel文件 - 完全按照studentIncome/export的方式
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                # 写入每日统计数据
+                df.to_excel(writer, sheet_name='每日补贴统计', index=False)
+
+                # 获取工作表对象进行格式化
+                worksheet = writer.sheets['每日补贴统计']
+
+                # 设置列宽
+                column_widths = {
+                    'A': 12,  # 日期
+                    'B': 15,  # 补贴总金额
+                    'C': 12,  # 剩余金额
+                    'D': 15,  # 实际获得金额
+                    'E': 12,  # 完成率
+                    'F': 12,  # 生成任务数
+                    'G': 12,  # 完成任务数
+                    'H': 12,  # 补贴学员数
+                    'I': 15,  # 奖金池总金额
+                    'J': 18,  # 奖金池已生成金额
+                    'K': 18,  # 奖金池已完成金额
+                    'L': 12,  # 达标学生数
+                    'M': 12,  # 总学生数
+                    'N': 20,  # 导出时间
+                }
+
+                for col, width in column_widths.items():
+                    worksheet.column_dimensions[col].width = width
+
+            output.seek(0)
+            return output.getvalue()
+
+        except Exception as e:
+            logger.error(f"导出每日补贴统计失败: {e}")
+            raise BusinessException(
+                code=500,
+                message=f"导出每日补贴统计失败: {str(e)}",
+                data=None
+            )

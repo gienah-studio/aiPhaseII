@@ -7,6 +7,21 @@ export interface VirtualOrderStats {
   totalTasksGenerated: number;
   totalTasksCompleted: number;
   completionRate: number;
+  // 新增奖金池相关字段
+  bonusPoolTotal?: number;
+  qualifiedStudentsCount?: number;
+}
+
+/**
+ * 虚拟订单每日统计数据类型
+ */
+export interface VirtualOrderDailyStats {
+  date: string;
+  dailyTasksGenerated: number;
+  dailyTasksCompleted: number;
+  dailySubsidy: number;
+  dailyActiveStudents: number;
+  dailyCompletionRate: number;
 }
 
 /**

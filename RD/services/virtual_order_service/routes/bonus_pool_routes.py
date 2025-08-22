@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date, datetime
+import io
 
 from shared.database.session import get_db
 from shared.schemas.common import ResponseSchema
@@ -50,6 +52,88 @@ async def get_bonus_pool_summary(
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取奖金池汇总信息失败: {str(e)}")
+
+@router.get("/dailyStats")
+async def get_daily_subsidy_stats(
+    start_date: Optional[date] = Query(None, description="开始日期，格式：YYYY-MM-DD"),
+    end_date: Optional[date] = Query(None, description="结束日期，格式：YYYY-MM-DD，默认为今天"),
+    days: Optional[int] = Query(7, description="查询天数，当start_date和end_date都为空时使用，默认7天"),
+    db: Session = Depends(get_db)
+):
+    """获取每日补贴统计数据
+
+    返回数据包含：
+    - 每天补贴总金额
+    - 剩余金额
+    - 实际获得金额
+    - 每天完成率
+    - 每天生成任务数
+    - 完成数
+    - 日期
+    """
+    try:
+        service = BonusPoolService(db)
+        result = service.get_daily_subsidy_stats(start_date, end_date, days)
+
+        return ResponseSchema(
+            code=200,
+            message="获取成功",
+            data=result
+        )
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取每日补贴统计失败: {str(e)}")
+
+@router.get("/dailyStats/export")
+async def export_daily_subsidy_stats(
+    start_date: Optional[date] = Query(None, description="开始日期，格式：YYYY-MM-DD"),
+    end_date: Optional[date] = Query(None, description="结束日期，格式：YYYY-MM-DD，默认为今天"),
+    days: Optional[int] = Query(7, description="查询天数，当start_date和end_date都为空时使用，默认7天"),
+    db: Session = Depends(get_db)
+):
+    """导出每日补贴统计数据为Excel
+
+    导出数据包含：
+    - 每天补贴总金额
+    - 剩余金额
+    - 实际获得金额
+    - 每天完成率
+    - 每天生成任务数
+    - 完成数
+    - 日期
+    - 奖金池相关数据
+    - 学生达标统计
+    """
+    try:
+        service = BonusPoolService(db)
+        excel_data = service.export_daily_subsidy_stats(start_date, end_date, days)
+
+        # 生成文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        date_range = ""
+        if start_date and end_date:
+            date_range = f"_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        elif days:
+            date_range = f"_最近{days}天"
+
+        filename = f"每日补贴统计{date_range}_{timestamp}.xlsx"
+
+        # 返回Excel文件 - 修复中文文件名编码问题
+        from urllib.parse import quote
+        encoded_filename = quote(filename, encoding='utf-8')
+        return StreamingResponse(
+            io.BytesIO(excel_data),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            }
+        )
+
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出每日补贴统计失败: {str(e)}")
 
 @router.post("/dailyTask")
 async def run_daily_bonus_pool_task(

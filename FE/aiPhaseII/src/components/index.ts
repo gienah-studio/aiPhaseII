@@ -10,6 +10,7 @@ export { default as VirtualOrderStatsChart } from './Charts/VirtualOrderStatsCha
 
 // 业务组件
 export { default as StudentPoolTable } from './StudentPool/StudentPoolTable';
+export { default as DailySubsidyStatsTable } from './DailySubsidyStatsTable';
 
 // 资源管理组件
 export * from './ResourceList';

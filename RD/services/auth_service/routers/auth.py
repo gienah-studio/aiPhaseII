@@ -204,13 +204,14 @@ def update_user_info(
 async def get_all_students_daily_income_stats(
     page: int = 1,
     size: int = 10,
+    stat_date: str = None,  # 新增日期参数，格式：YYYY-MM-DD
     current_user: OriginalUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """获取所有学员每日收入统计"""
     try:
         auth_service = AuthService(db)
-        result = auth_service.get_all_students_income_stats(page=page, size=size)
+        result = auth_service.get_all_students_income_stats(page=page, size=size, stat_date=stat_date)
 
         return ResponseSchema[dict](
             code=200,
@@ -221,3 +222,26 @@ async def get_all_students_daily_income_stats(
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取学员收入统计失败: {str(e)}")
+
+@router.post("/student/subsidy-pool/adjust")
+async def adjust_student_subsidy_pool(
+    student_id: int,
+    adjustment_amount: float,
+    reason: str = "手动调整",
+    current_user: OriginalUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """手动调整学员补贴池金额（管理员功能）"""
+    try:
+        auth_service = AuthService(db)
+        result = auth_service.adjust_student_subsidy_pool(student_id, adjustment_amount, reason)
+
+        return ResponseSchema(
+            code=200,
+            message="补贴池金额调整成功",
+            data=result
+        )
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"调整补贴池金额失败: {str(e)}")

@@ -5,23 +5,27 @@ import {
   UserOutlined, 
   DollarOutlined, 
   FileTextOutlined, 
-  CheckCircleOutlined 
+  CheckCircleOutlined,
+  TrophyOutlined,
+  CrownOutlined
 } from '@ant-design/icons';
 import type { VirtualOrderStats } from '../../api/virtualOrders/types';
 
 interface VirtualOrderStatsChartProps {
   data: VirtualOrderStats;
   loading?: boolean;
+  isDailyStats?: boolean; // 新增：标识是否为每日统计
 }
 
 const VirtualOrderStatsChart: React.FC<VirtualOrderStatsChartProps> = ({ 
   data, 
-  loading = false 
+  loading = false,
+  isDailyStats = false
 }) => {
   // 饼图配置 - 任务完成情况
   const pieOption = {
     title: {
-      text: '任务完成情况',
+      text: isDailyStats ? '今日任务完成情况' : '任务完成情况',
       left: 'center',
       textStyle: {
         fontSize: 16,
@@ -82,7 +86,7 @@ const VirtualOrderStatsChart: React.FC<VirtualOrderStatsChartProps> = ({
   // 柱状图配置 - 统计概览
   const barOption = {
     title: {
-      text: '数据统计概览',
+      text: isDailyStats ? '今日数据统计概览' : '数据统计概览',
       left: 'center',
       textStyle: {
         fontSize: 16,
@@ -103,7 +107,7 @@ const VirtualOrderStatsChart: React.FC<VirtualOrderStatsChartProps> = ({
     },
     xAxis: {
       type: 'category',
-      data: ['学生总数', '生成任务', '完成任务'],
+      data: isDailyStats ? ['活跃学生', '生成任务', '完成任务'] : ['学生总数', '生成任务', '完成任务'],
       axisLabel: {
         interval: 0,
         rotate: 0
@@ -142,20 +146,20 @@ const VirtualOrderStatsChart: React.FC<VirtualOrderStatsChartProps> = ({
     <div>
       {/* 统计卡片 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card>
             <Statistic
-              title="学生总数"
+              title={isDailyStats ? "今日活跃学生" : "学生总数"}
               value={data.totalStudents}
               prefix={<UserOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card>
             <Statistic
-              title="总补贴金额"
+              title={isDailyStats ? "今日补贴金额" : "总补贴金额"}
               value={data.totalSubsidy}
               prefix={<DollarOutlined />}
               precision={2}
@@ -164,25 +168,49 @@ const VirtualOrderStatsChart: React.FC<VirtualOrderStatsChartProps> = ({
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card>
             <Statistic
-              title="生成任务数"
+              title={isDailyStats ? "今日生成任务" : "生成任务数"}
               value={data.totalTasksGenerated}
               prefix={<FileTextOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card>
             <Statistic
-              title="完成率"
+              title={isDailyStats ? "今日完成率" : "完成率"}
               value={data.completionRate}
               prefix={<CheckCircleOutlined />}
               precision={2}
               valueStyle={{ color: '#fa8c16' }}
               suffix="%"
+            />
+          </Card>
+        </Col>
+        {/* 新增奖金池相关卡片 */}
+        <Col xs={12} sm={8} md={6} lg={4}>
+          <Card>
+            <Statistic
+              title="奖池累计金额"
+              value={data.bonusPoolTotal || 0}
+              prefix={<TrophyOutlined />}
+              precision={2}
+              valueStyle={{ color: '#13c2c2' }}
+              suffix="元"
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={8} md={6} lg={4}>
+          <Card>
+            <Statistic
+              title="可抢奖金池人数"
+              value={data.qualifiedStudentsCount || 0}
+              prefix={<CrownOutlined />}
+              valueStyle={{ color: '#eb2f96' }}
+              suffix="人"
             />
           </Card>
         </Col>
