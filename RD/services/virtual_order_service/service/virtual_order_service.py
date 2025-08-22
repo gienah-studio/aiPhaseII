@@ -2490,47 +2490,71 @@ class VirtualOrderService:
 
             generated_tasks_info = []
 
-            # 如果有剩余价值，重新生成任务
+            # 如果有剩余价值，先加回补贴池，然后基于补贴池剩余金额重新生成任务
             if remaining_task_value > Decimal('0'):
-                try:
-                    # 使用虚拟客服分配策略重新生成任务
-                    allocation_result = self.allocator.allocate_tasks_to_services(
-                        remaining_task_value, task.target_student_id, pool.student_name
-                    )
+                # 关键修复：把剩余价值加回补贴池
+                pool.remaining_amount += remaining_task_value
+                logger.info(f"剩余价值 {remaining_task_value} 已加回补贴池，当前剩余: {pool.remaining_amount}")
 
-                    if allocation_result.success:
-                        # 记录生成的任务信息
-                        for allocated_task in allocation_result.allocated_tasks:
-                            generated_tasks_info.append({
-                                'task_id': allocated_task['id'],
-                                'amount': allocated_task['amount'],
-                                'founder_id': allocated_task['founder_id'],
-                                'founder': allocated_task['founder']
-                            })
-                            logger.info(f"重新生成任务: ID={allocated_task['id']}, 金额={allocated_task['amount']}, "
-                                       f"分配给客服: {allocated_task['founder']}")
-                    else:
-                        logger.warning(f"使用虚拟客服分配策略重新生成任务失败: {allocation_result.error_message}")
-                        # 回退到原有方式（不分配虚拟客服）
-                        new_task_amounts = self.calculate_task_amounts(remaining_task_value)
-                        logger.info(f"回退到原有方式，剩余价值 {remaining_task_value} 分配为: {new_task_amounts}")
+                # 基于补贴池剩余金额决定是否生成新任务
+                if pool.remaining_amount > Decimal('0'):
+                    try:
+                        # 使用补贴池剩余金额生成任务，而不是直接使用剩余价值
+                        allocation_result = self.allocator.allocate_tasks_to_services(
+                            pool.remaining_amount, task.target_student_id, pool.student_name, on_demand=True
+                        )
 
-                        for amount in new_task_amounts:
-                            new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
-                            if new_task:
-                                self.db.add(new_task)
+                        if allocation_result.success:
+                            # 记录生成的任务信息
+                            generated_amount = Decimal('0')
+                            for allocated_task in allocation_result.allocated_tasks:
                                 generated_tasks_info.append({
-                                    'task_id': new_task.id,
-                                    'amount': float(amount)
+                                    'task_id': allocated_task['id'],
+                                    'amount': allocated_task['amount'],
+                                    'founder_id': allocated_task['founder_id'],
+                                    'founder': allocated_task['founder']
                                 })
-                                logger.info(f"重新生成任务(无客服分配): ID={new_task.id}, 金额={amount}")
-                            else:
-                                logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
-                                break
+                                generated_amount += Decimal(str(allocated_task['amount']))
+                                logger.info(f"重新生成任务: ID={allocated_task['id']}, 金额={allocated_task['amount']}, "
+                                           f"分配给客服: {allocated_task['founder']}")
 
-                except Exception as e:
-                    logger.error(f"重新生成任务失败: {str(e)}")
-                    # 不影响主流程，继续执行
+                            # 更新补贴池剩余金额：扣减已生成的任务金额
+                            pool.remaining_amount -= generated_amount
+                            if pool.remaining_amount < 0:
+                                pool.remaining_amount = Decimal('0')
+                            logger.info(f"已生成任务总金额: {generated_amount}, 补贴池剩余: {pool.remaining_amount}")
+                        else:
+                            logger.warning(f"使用虚拟客服分配策略重新生成任务失败: {allocation_result.error_message}")
+                            # 回退到原有方式（按需生成1-2个任务）
+                            new_task_amounts = self.calculate_on_demand_task_amounts(pool.remaining_amount)
+                            logger.info(f"回退到原有方式，补贴池剩余 {pool.remaining_amount} 分配为: {new_task_amounts}")
+
+                            generated_amount = Decimal('0')
+                            for amount in new_task_amounts:
+                                new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
+                                if new_task:
+                                    self.db.add(new_task)
+                                    generated_tasks_info.append({
+                                        'task_id': new_task.id,
+                                        'amount': float(amount),
+                                        'founder_id': 0,
+                                        'founder': '虚拟订单系统'
+                                    })
+                                    generated_amount += amount
+                                    logger.info(f"回退方式生成任务: ID={new_task.id}, 金额={amount}")
+                                else:
+                                    logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
+                                    break
+
+                            # 更新补贴池剩余金额
+                            pool.remaining_amount -= generated_amount
+                            if pool.remaining_amount < 0:
+                                pool.remaining_amount = Decimal('0')
+                            logger.info(f"回退方式生成任务总金额: {generated_amount}, 补贴池剩余: {pool.remaining_amount}")
+
+                    except Exception as e:
+                        logger.error(f"重新生成任务失败: {str(e)}")
+                        # 不影响主流程，继续执行
 
             self.db.commit()
 
