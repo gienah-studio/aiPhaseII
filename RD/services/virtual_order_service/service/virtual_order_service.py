@@ -2491,8 +2491,15 @@ class VirtualOrderService:
 
             generated_tasks_info = []
 
-            # 如果有剩余价值，先加回补贴池，然后基于补贴池剩余金额重新生成任务
-            if remaining_task_value > Decimal('0'):
+            # 判断任务是否为跨天完成（按创建日期区分）
+            task_date = task.created_at.date()
+            today = datetime.now().date()
+
+            if task_date < today:
+                # 跨天完成的任务：只确认完成，不重新生成任务
+                logger.info(f"跨天任务完成: task_id={task.id}, 创建日期={task_date}, 当前日期={today}, 只确认完成不生成新任务")
+            elif remaining_task_value > Decimal('0'):
+                # 当天任务且有剩余价值：先加回补贴池，然后基于补贴池剩余金额重新生成任务
                 # 关键修复：把剩余价值加回补贴池
                 pool.remaining_amount += remaining_task_value
                 logger.info(f"剩余价值 {remaining_task_value} 已加回补贴池，当前剩余: {pool.remaining_amount}")
