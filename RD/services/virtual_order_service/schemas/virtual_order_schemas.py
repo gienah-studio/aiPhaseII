@@ -38,6 +38,16 @@ class VirtualOrderStatsResponse(BaseModel):
     total_tasks_completed: int = Field(..., description="完成的任务数")
     completion_rate: float = Field(..., description="完成率")
 
+# 虚拟订单当天统计响应
+class VirtualOrderDailyStatsResponse(BaseModel):
+    """虚拟订单当天统计响应"""
+    date: str = Field(..., description="统计日期")
+    daily_tasks_generated: int = Field(..., description="当天生成的任务数")
+    daily_tasks_completed: int = Field(..., description="当天完成的任务数")
+    daily_subsidy: float = Field(..., description="当天完成任务的补贴金额")
+    daily_active_students: int = Field(..., description="当天活跃学生数")
+    daily_completion_rate: float = Field(..., description="当天完成率")
+
 # 学生补贴池信息
 class StudentPoolInfo(BaseModel):
     """学生补贴池信息"""
@@ -45,14 +55,11 @@ class StudentPoolInfo(BaseModel):
     student_id: int
     student_name: str
     total_subsidy: Decimal
-    remaining_amount: Decimal  # 显示的剩余金额（达标学生包含奖金池）
-    subsidy_remaining: Decimal  # 纯补贴剩余金额
-    bonus_pool_amount: Decimal  # 奖金池分配金额
+    remaining_amount: Decimal  # 剩余金额（不再包含奖金池）
     allocated_amount: Decimal
     completed_amount: Decimal
     consumed_subsidy: Decimal  # 实际消耗的补贴金额
-    subsidy_completion_rate: float  # 纯补贴完成率
-    completion_rate: float  # 完成率（保持原有逻辑）
+    completion_rate: float  # 完成率
     is_qualified: bool  # 是否达标
     agent_rebate: Optional[str]
     status: str

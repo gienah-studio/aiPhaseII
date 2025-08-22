@@ -1194,6 +1194,110 @@ class VirtualOrderService:
                 data=None
             )
 
+    def get_virtual_order_daily_stats(self, target_date: str = None) -> Dict[str, Any]:
+        """获取虚拟订单当天统计信息
+
+        Args:
+            target_date: 目标日期 (YYYY-MM-DD)，为空则使用当天
+
+        Returns:
+            Dict: 当天统计信息
+        """
+        try:
+            from datetime import datetime, date
+
+            # 确定目标日期
+            if target_date:
+                target_date_obj = datetime.strptime(target_date, '%Y-%m-%d').date()
+            else:
+                target_date_obj = date.today()
+
+            # 计算当天的开始和结束时间
+            start_datetime = datetime.combine(target_date_obj, datetime.min.time())
+            end_datetime = datetime.combine(target_date_obj, datetime.max.time())
+
+            # 统计当天生成的虚拟任务数量
+            daily_tasks_generated = self.db.query(Tasks).filter(
+                and_(
+                    Tasks.is_virtual.is_(True),
+                    Tasks.created_at >= start_datetime,
+                    Tasks.created_at <= end_datetime
+                )
+            ).count()
+
+            # 统计当天完成的虚拟任务数量 (status=4表示已完成)
+            daily_tasks_completed = self.db.query(Tasks).filter(
+                and_(
+                    Tasks.is_virtual.is_(True),
+                    Tasks.status == '4',
+                    Tasks.updated_at >= start_datetime,
+                    Tasks.updated_at <= end_datetime
+                )
+            ).count()
+
+            # 统计当天完成任务的补贴金额
+            daily_subsidy_result = self.db.query(func.sum(Tasks.commission)).filter(
+                and_(
+                    Tasks.is_virtual.is_(True),
+                    Tasks.status == '4',
+                    Tasks.updated_at >= start_datetime,
+                    Tasks.updated_at <= end_datetime
+                )
+            ).scalar()
+            daily_subsidy = float(daily_subsidy_result) if daily_subsidy_result else 0.0
+
+            # 统计当天有任务活动的学生人数（生成或完成任务的学生）
+            # 当天生成任务的学生
+            generated_students = self.db.query(Tasks.target_student_id).filter(
+                and_(
+                    Tasks.is_virtual.is_(True),
+                    Tasks.target_student_id.isnot(None),
+                    Tasks.created_at >= start_datetime,
+                    Tasks.created_at <= end_datetime
+                )
+            ).distinct().all()
+
+            # 当天完成任务的学生
+            completed_students = self.db.query(Tasks.target_student_id).filter(
+                and_(
+                    Tasks.is_virtual.is_(True),
+                    Tasks.status == '4',
+                    Tasks.target_student_id.isnot(None),
+                    Tasks.updated_at >= start_datetime,
+                    Tasks.updated_at <= end_datetime
+                )
+            ).distinct().all()
+
+            # 合并去重，统计当天活跃学生数
+            active_student_ids = set()
+            for student in generated_students:
+                if student[0]:
+                    active_student_ids.add(student[0])
+            for student in completed_students:
+                if student[0]:
+                    active_student_ids.add(student[0])
+
+            daily_active_students = len(active_student_ids)
+
+            # 计算当天完成率
+            daily_completion_rate = (daily_tasks_completed / daily_tasks_generated * 100) if daily_tasks_generated > 0 else 0.0
+
+            return {
+                'date': target_date_obj.isoformat(),
+                'daily_tasks_generated': daily_tasks_generated,
+                'daily_tasks_completed': daily_tasks_completed,
+                'daily_subsidy': daily_subsidy,
+                'daily_active_students': daily_active_students,
+                'daily_completion_rate': round(daily_completion_rate, 2)
+            }
+
+        except Exception as e:
+            raise BusinessException(
+                code=500,
+                message=f"获取虚拟订单当天统计失败: {str(e)}",
+                data=None
+            )
+
     def get_student_pools(self, page: int = 1, size: int = 20, status: str = None) -> Dict[str, Any]:
         """获取学生补贴池列表（包含奖金池信息）"""
         try:
@@ -1218,23 +1322,6 @@ class VirtualOrderService:
             # 获取昨天的日期（用于判断达标）
             yesterday = date.today() - timedelta(days=1)
 
-            # 获取今日奖金池信息并实时同步状态
-            today_bonus_pool = self.db.query(BonusPool).filter(
-                BonusPool.pool_date == date.today()
-            ).first()
-
-            # 获取今日奖金池的剩余金额（用于达标学生的剩余金额计算）
-            bonus_pool_amount = Decimal('0')
-            if today_bonus_pool:
-                # 实时计算奖金池的剩余金额
-                bonus_pool_amount = self._get_real_time_bonus_pool_remaining(today_bonus_pool)
-
-                # 更新奖金池的剩余金额到数据库（可选，用于数据一致性）
-                if today_bonus_pool.remaining_amount != bonus_pool_amount:
-                    today_bonus_pool.remaining_amount = bonus_pool_amount
-                    today_bonus_pool.updated_at = datetime.now()
-                    self.db.commit()
-
             # 转换为字典格式
             items = []
             for pool in pools:
@@ -1249,22 +1336,6 @@ class VirtualOrderService:
                 ).first()
 
                 is_qualified = yesterday_achievement is not None
-
-                # 计算显示的剩余金额
-                display_remaining = pool.remaining_amount
-                student_bonus_amount = Decimal('0')
-
-                if is_qualified and bonus_pool_amount > 0:
-                    # 达标学生：剩余金额包含奖金池
-                    # 平均分配奖金池（或根据实际业务逻辑分配）
-                    qualified_count = self.db.query(StudentDailyAchievement).filter(
-                        StudentDailyAchievement.achievement_date == yesterday,
-                        StudentDailyAchievement.is_achieved == True
-                    ).count()
-
-                    if qualified_count > 0:
-                        student_bonus_amount = bonus_pool_amount / qualified_count
-                        display_remaining = pool.remaining_amount + student_bonus_amount
 
                 # 计算完成率（基于实际获得金额）
                 completion_rate = 0.0
@@ -1284,16 +1355,13 @@ class VirtualOrderService:
                     'student_id': pool.student_id,
                     'student_name': pool.student_name,
                     'total_subsidy': float(pool.total_subsidy),  # 每日补贴额度
-                    'remaining_amount': float(display_remaining),  # 显示的剩余（包含奖金池）
-                    'subsidy_remaining': float(pool.remaining_amount),  # 纯补贴剩余金额
-                    'bonus_pool_amount': float(student_bonus_amount),  # 奖金池金额
+                    'remaining_amount': float(pool.remaining_amount),  # 剩余金额（不再包含奖金池）
                     'allocated_amount': float(pool.allocated_amount),
                     'completed_amount': float(pool.completed_amount),  # 当日已完成
                     'consumed_subsidy': float(pool.consumed_subsidy),  # 当日实际消耗的补贴金额
-                    'subsidy_completion_rate': round(float(pool.consumed_subsidy / pool.total_subsidy * 100), 2) if pool.total_subsidy > 0 else 0.0,  # 纯补贴完成率
-                    'agent_rebate': agent_rebate,  # 代理返佣比例
-                    'completion_rate': round(completion_rate, 2),  # 完成率（保持原有逻辑）
+                    'completion_rate': round(completion_rate, 2),  # 完成率
                     'is_qualified': is_qualified,  # 是否达标
+                    'agent_rebate': agent_rebate,  # 代理返佣比例
                     'status': pool.status,
                     'import_batch': pool.import_batch,
                     'created_at': pool.created_at,
@@ -1314,53 +1382,7 @@ class VirtualOrderService:
                 data=None
             )
 
-    def _get_real_time_bonus_pool_remaining(self, bonus_pool) -> Decimal:
-        """
-        实时计算奖金池剩余金额
 
-        Args:
-            bonus_pool: 奖金池对象
-
-        Returns:
-            Decimal: 实时剩余金额
-        """
-        try:
-            from sqlalchemy import func
-
-            # 查询今日所有已完成的奖金池任务
-            completed_bonus_tasks = self.db.query(Tasks).filter(
-                Tasks.is_bonus_pool == True,
-                Tasks.bonus_pool_date == bonus_pool.pool_date,
-                Tasks.status == '4'  # 已完成
-            ).all()
-
-            # 计算已完成任务的实际消耗金额（学生实际收益）
-            total_consumed = Decimal('0')
-            for task in completed_bonus_tasks:
-                if task.accepted_by:  # 如果任务有接取者
-                    try:
-                        student_id = int(task.accepted_by)
-                        # 获取学生返佣比例
-                        rebate_rate = self.get_student_rebate_rate(student_id)
-                        # 计算学生实际收益（这部分从奖金池扣除）
-                        student_income = task.commission * rebate_rate
-                        total_consumed += student_income
-                    except (ValueError, TypeError):
-                        # 如果 accepted_by 不是有效的学生ID，跳过
-                        continue
-
-            # 实时剩余金额 = 总金额 - 实际消耗金额
-            real_time_remaining = bonus_pool.total_amount - total_consumed
-
-            # 确保不为负数
-            if real_time_remaining < 0:
-                real_time_remaining = Decimal('0')
-
-            return real_time_remaining
-
-        except Exception as e:
-            # 如果计算失败，返回数据库中的值
-            return bonus_pool.remaining_amount
 
     def _sync_student_completed_amount(self, pool: VirtualOrderPool) -> None:
         """

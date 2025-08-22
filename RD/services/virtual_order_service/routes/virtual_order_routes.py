@@ -17,6 +17,7 @@ from ..schemas.virtual_order_schemas import (
     StudentSubsidyImportResponse,
     CustomerServiceImportResponse,
     VirtualOrderStatsResponse,
+    VirtualOrderDailyStatsResponse,
     StudentPoolListResponse,
     ReallocateTasksRequest,
     ReallocateTasksResponse,
@@ -166,17 +167,42 @@ async def get_virtual_order_stats(db: Session = Depends(get_db)):
     try:
         service = VirtualOrderService(db)
         result = service.get_virtual_order_stats()
-        
+
         return ResponseSchema[VirtualOrderStatsResponse](
             code=200,
             message="获取成功",
             data=VirtualOrderStatsResponse(**result)
         )
-        
+
     except BusinessException as e:
         raise HTTPException(status_code=400, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
+
+@router.get(
+    "/stats/daily",
+    response_model=ResponseSchema[VirtualOrderDailyStatsResponse],
+    **VirtualOrderApiDocs.GET_VIRTUAL_ORDER_DAILY_STATS
+)
+async def get_virtual_order_daily_stats(
+    target_date: Optional[str] = Query(None, description="目标日期 (YYYY-MM-DD)，为空则使用当天"),
+    db: Session = Depends(get_db)
+):
+    """获取虚拟订单当天统计"""
+    try:
+        service = VirtualOrderService(db)
+        result = service.get_virtual_order_daily_stats(target_date)
+
+        return ResponseSchema[VirtualOrderDailyStatsResponse](
+            code=200,
+            message="获取成功",
+            data=VirtualOrderDailyStatsResponse(**result)
+        )
+
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取当天统计失败: {str(e)}")
 
 @router.get(
     "/studentPools",

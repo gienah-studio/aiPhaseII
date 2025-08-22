@@ -382,6 +382,119 @@ class BonusPoolService:
         else:
             return Decimal('10')
 
+    def generate_single_bonus_pool_task(self, pool_date: date = None) -> Dict[str, Any]:
+        """
+        生成单个奖金池任务（严格1:1替换专用）
+
+        Args:
+            pool_date: 奖金池日期，默认为今天
+
+        Returns:
+            Dict: 生成结果
+        """
+        if pool_date is None:
+            pool_date = date.today()
+
+        # 获取今日奖金池
+        bonus_pool = self.db.query(BonusPool).filter(
+            BonusPool.pool_date == pool_date
+        ).first()
+
+        if not bonus_pool:
+            return {
+                'success': False,
+                'message': '奖金池不存在',
+                'generated_tasks': 0
+            }
+
+        # 检查是否有剩余金额
+        if bonus_pool.remaining_amount <= 0:
+            return {
+                'success': True,
+                'message': '奖金池已分配完毕',
+                'generated_tasks': 0
+            }
+
+        # 检查是否有达标学生
+        yesterday = pool_date - timedelta(days=1)
+        qualified_students = self.db.query(StudentDailyAchievement).filter(
+            StudentDailyAchievement.achievement_date == yesterday,
+            StudentDailyAchievement.is_achieved == True
+        ).all()
+
+        if not qualified_students:
+            return {
+                'success': False,
+                'message': '没有达标学生，无法生成奖金池任务',
+                'generated_tasks': 0
+            }
+
+        # 计算单个任务金额
+        task_amount = self._calculate_bonus_task_amount(bonus_pool.remaining_amount)
+
+        logger.info(f"奖金池单任务生成：剩余金额={bonus_pool.remaining_amount}，生成金额={task_amount}")
+
+        # 直接生成单个任务，不使用按需生成逻辑
+        generated_tasks = []
+        now = datetime.now()
+
+        try:
+            # 生成任务内容
+            task_content = self.virtual_order_service.generate_random_task_content()
+
+            task = Tasks(
+                summary=task_content['summary'],
+                requirement=task_content['requirement'],
+                reference_images='',
+                source='奖金池',
+                order_number=self.virtual_order_service.generate_order_number(),
+                commission=task_amount,
+                commission_unit='人民币',
+                end_date=now + timedelta(hours=3),  # 3小时后过期
+                delivery_date=now + timedelta(hours=3),
+                status='0',  # 待接取
+                task_style='其他',
+                task_type='其他',
+                created_at=now,
+                updated_at=now,
+                orders_number=1,
+                order_received_number=0,
+                founder='奖金池系统',
+                founder_id=0,
+                payment_status='1',
+                task_level='D',
+                is_virtual=True,
+                is_bonus_pool=True,  # 标记为奖金池任务
+                bonus_pool_date=pool_date,
+                target_student_id=None,  # 不限定特定学生
+                is_renew='0',
+                virtual_service_id=None,
+                virtual_service_name=None
+            )
+
+            self.db.add(task)
+            generated_tasks.append(task)
+
+        except Exception as e:
+            logger.error(f"生成单个奖金池任务失败: {str(e)}")
+            return {
+                'success': False,
+                'message': f'生成任务失败: {str(e)}',
+                'generated_tasks': 0
+            }
+
+        # 更新奖金池时间戳
+        bonus_pool.updated_at = datetime.now()
+        self.db.commit()
+
+        return {
+            'success': True,
+            'message': f'成功生成 1 个奖金池任务',
+            'generated_tasks': 1,
+            'total_amount': float(task_amount),
+            'remaining_amount': float(bonus_pool.remaining_amount)
+        }
+
     def generate_bonus_pool_tasks(self, pool_date: date = None) -> Dict[str, Any]:
         """
         按需生成奖金池任务（复用虚拟任务生成逻辑）
@@ -566,19 +679,19 @@ class BonusPoolService:
 
         self.db.commit()
 
-        # 重新生成对应数量的奖金池任务（1:1替换）
+        # 重新生成对应数量的奖金池任务（严格1:1替换）
         regenerated_count = 0
         for i in range(expired_count):
             try:
-                result = self.generate_bonus_pool_tasks(today)
+                result = self.generate_single_bonus_pool_task(today)
                 if result['success'] and result['generated_tasks'] > 0:
                     regenerated_count += result['generated_tasks']
-                    logger.info(f"过期替换：第 {i+1} 批生成了 {result['generated_tasks']} 个奖金池任务")
+                    logger.info(f"过期替换：第 {i+1}/{expired_count} 生成了 {result['generated_tasks']} 个奖金池任务")
                 else:
-                    logger.warning(f"过期替换：第 {i+1} 批生成失败: {result['message']}")
+                    logger.warning(f"过期替换：第 {i+1}/{expired_count} 生成失败: {result['message']}")
                     break  # 如果生成失败（比如奖金池用完），停止生成
             except Exception as e:
-                logger.error(f"过期替换：第 {i+1} 批生成异常: {str(e)}")
+                logger.error(f"过期替换：第 {i+1}/{expired_count} 生成异常: {str(e)}")
                 break
 
         return {
@@ -652,19 +765,19 @@ class BonusPoolService:
         bonus_pool.updated_at = datetime.now()
         self.db.commit()
 
-        # 为每个完成的任务重新生成1-2个新任务
+        # 为每个完成的任务重新生成1个新任务（严格1:1补充）
         regenerated_count = 0
         for i in range(completed_count):
             try:
-                result = self.generate_bonus_pool_tasks(today)
+                result = self.generate_single_bonus_pool_task(today)
                 if result['success'] and result['generated_tasks'] > 0:
                     regenerated_count += result['generated_tasks']
-                    logger.info(f"完成补充：第 {i+1} 批生成了 {result['generated_tasks']} 个奖金池任务")
+                    logger.info(f"完成补充：第 {i+1}/{completed_count} 生成了 {result['generated_tasks']} 个奖金池任务")
                 else:
-                    logger.warning(f"完成补充：第 {i+1} 批生成失败: {result['message']}")
+                    logger.warning(f"完成补充：第 {i+1}/{completed_count} 生成失败: {result['message']}")
                     break  # 如果生成失败（比如奖金池用完），停止生成
             except Exception as e:
-                logger.error(f"完成补充：第 {i+1} 批生成异常: {str(e)}")
+                logger.error(f"完成补充：第 {i+1}/{completed_count} 生成异常: {str(e)}")
                 break
 
         return {
@@ -728,10 +841,10 @@ class BonusPoolService:
         logger.info(f"奖金池任务 {task_id} 完成处理: 任务面值={task.commission}, 学生收益={student_income}, 价值回收={recycled_value}")
         logger.info(f"奖金池状态: {old_remaining} → {bonus_pool.remaining_amount}")
 
-        # 尝试生成新的奖金池任务
+        # 尝试生成新的奖金池任务（严格1:1替换）
         regenerated_tasks = 0
         try:
-            result = self.generate_bonus_pool_tasks(task.bonus_pool_date)
+            result = self.generate_single_bonus_pool_task(task.bonus_pool_date)
             if result['success']:
                 regenerated_tasks = result['generated_tasks']
                 logger.info(f"完成任务后重新生成了 {regenerated_tasks} 个奖金池任务")
