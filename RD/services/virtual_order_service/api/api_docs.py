@@ -63,6 +63,29 @@ class VirtualOrderApiDocs:
         """
     }
 
+    # 获取虚拟订单当天统计
+    GET_VIRTUAL_ORDER_DAILY_STATS = {
+        "summary": "获取虚拟订单当天统计",
+        "description": "获取虚拟订单当天的生成任务数量、完成任务数量、补贴金额、完成率、活跃学生人数",
+        "response_description": """
+        返回数据结构:
+        ```json
+        {
+            "code": 200,
+            "message": "获取成功",
+            "data": {
+                "date": "2024-01-15",
+                "daily_tasks_generated": 25,
+                "daily_tasks_completed": 18,
+                "daily_subsidy": 1800.00,
+                "daily_active_students": 15,
+                "daily_completion_rate": 72.00
+            }
+        }
+        ```
+        """
+    }
+
     # 获取学生补贴池列表
     GET_STUDENT_POOLS = {
         "summary": "获取学生补贴池列表",
