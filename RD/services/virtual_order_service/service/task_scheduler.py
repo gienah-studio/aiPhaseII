@@ -269,6 +269,14 @@ class VirtualOrderTaskScheduler:
 
             # 重新生成任务（1:1替换）
             if expired_task_count > 0:
+                # 关键修复：检查学生是否已超过补贴上限
+                if pool.consumed_subsidy >= pool.total_subsidy:
+                    logger.info(f"学生 {pool.student_name} 已达到补贴上限: 上限={pool.total_subsidy}元, 已获得={pool.consumed_subsidy}元, 停止过期任务重新生成")
+                    # 重置剩余金额为0，防止后续生成
+                    pool.remaining_amount = Decimal('0')
+                    pool.updated_at = datetime.now()
+                    return
+
                 # 过期任务重新生成使用与价值回收相同的规则
                 # - 剩余补贴 < 8元：生成5元任务
                 # - 剩余补贴 >= 8元：生成10元任务
@@ -812,6 +820,14 @@ class VirtualOrderTaskScheduler:
             # 检查是否还有剩余补贴额度
             if pool.remaining_amount <= 0:
                 logger.info(f"学生 {pool.student_name} 当日补贴已用完，跳过价值回收任务生成")
+                return
+
+            # 关键修复：检查学生是否已超过补贴上限
+            if pool.consumed_subsidy >= pool.total_subsidy:
+                logger.info(f"学生 {pool.student_name} 已达到补贴上限: 上限={pool.total_subsidy}元, 已获得={pool.consumed_subsidy}元, 停止价值回收任务生成")
+                # 重置剩余金额为0，防止后续生成
+                pool.remaining_amount = Decimal('0')
+                pool.updated_at = datetime.now()
                 return
 
             # 价值回收任务金额规则：
