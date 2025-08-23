@@ -2562,8 +2562,8 @@ class VirtualOrderService:
                         #         pool.remaining_amount = Decimal('0')
                         #     logger.info(f"回退方式生成任务总金额: {generated_amount}, 补贴池剩余: {pool.remaining_amount}")
 
-                        # 任务生成已禁用，价值回收将在定时任务中处理
-                        pass
+                # 任务生成已禁用，价值回收将在定时任务中处理
+                pass
 
             self.db.commit()
 
