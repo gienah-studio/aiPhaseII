@@ -43,9 +43,9 @@ class VirtualOrderTaskScheduler:
         self.is_running = True
         logger.info(f"虚拟订单定时任务调度器已启动")
         logger.info(f"主任务循环：每{self.check_interval_minutes}分钟执行一次")
-        logger.info(f"价值回收任务：每{self.value_recycling_interval_minutes}分钟执行一次")
+        logger.info(f"价值回收任务：每{self.value_recycling_interval_minutes}分钟执行一次，含补贴上限保护")
 
-        # 启动独立的价值回收任务
+        # 启动独立的价值回收任务，含补贴上限检查
         value_recycling_task = asyncio.create_task(self._value_recycling_loop())
 
         try:
