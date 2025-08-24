@@ -2449,7 +2449,7 @@ class VirtualOrderService:
             # 更新任务状态为已完成
             task.status = '4'
             task.payment_status = '4'
-            task.value_recycled = False  # 价值未回收，等待定时任务处理
+            task.value_recycled = True  # 立即标记为已回收，避免价值回收任务重复处理
             task.updated_at = datetime.now()
 
             # 查找对应的学生补贴池
