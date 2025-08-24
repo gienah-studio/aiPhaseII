@@ -4,13 +4,14 @@ from datetime import datetime, timedelta, date, time
 from typing import List
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_, or_, func, text
 
 from shared.database.session import SessionLocal
 from shared.models.tasks import Tasks
 from shared.models.virtual_order_pool import VirtualOrderPool
 from .virtual_order_service import VirtualOrderService
 from .bonus_pool_service import BonusPoolService
+from .bonus_pool_auto_confirm_manager import BonusPoolAutoConfirmManager
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +74,10 @@ class VirtualOrderTaskScheduler:
                     # 4. 执行自动确认任务检查（每5分钟）
                     if self.is_running:
                         await self.check_auto_confirm_tasks()
+                    
+                    # 5. 执行奖金池任务自动确认检查（每5分钟）
+                    if self.is_running:
+                        await self.check_bonus_pool_auto_confirm_tasks()
 
                     # 等待指定间隔时间
                     wait_seconds = self.check_interval_minutes * 60
@@ -569,6 +574,7 @@ class VirtualOrderTaskScheduler:
             completed_tasks = db.query(Tasks).filter(
                 and_(
                     Tasks.is_virtual == True,
+                    Tasks.is_bonus_pool == False,  # 只处理普通虚拟任务，排除奖金池任务
                     Tasks.status == '4',  # 已完成状态
                     Tasks.value_recycled == False,  # 未回收价值
                     Tasks.updated_at >= five_minutes_ago,  # 最近5分钟内更新的
@@ -736,11 +742,12 @@ class VirtualOrderTaskScheduler:
                 await self.mark_value_recycled_only(db)
                 return
 
-            # 查找所有未回收价值的已完成任务（包含虚拟任务和奖金池任务）
+            # 查找所有未回收价值的已完成普通虚拟任务（排除奖金池任务）
             # 移除时间限制，确保服务中断后重启时能处理所有积压的任务
             completed_tasks = db.query(Tasks).filter(
                 and_(
                     Tasks.is_virtual == True,
+                    Tasks.is_bonus_pool == False,  # 只处理普通虚拟任务，排除奖金池任务
                     Tasks.status == '4',  # 已完成状态
                     Tasks.value_recycled == False,  # 未回收价值
                     Tasks.target_student_id.isnot(None)  # 有目标学生的任务
@@ -751,7 +758,7 @@ class VirtualOrderTaskScheduler:
                 logger.info("没有发现需要价值回收的已完成任务")
                 return
 
-            logger.info(f"发现 {len(completed_tasks)} 个需要价值回收的已完成任务（包含虚拟任务和奖金池任务）")
+            logger.info(f"发现 {len(completed_tasks)} 个需要价值回收的已完成普通虚拟任务（不包含奖金池任务）")
 
             # 按学生分组处理
             student_recycled_values = {}
@@ -962,9 +969,10 @@ class VirtualOrderTaskScheduler:
                     # 使用creation_time字段，转换为datetime进行比较
                     func.STR_TO_DATE(StudentTask.creation_time, '%Y-%m-%d %H:%i:%s') <= cutoff_time,
                     StudentTask.content.isnot(None),  # 确实有提交内容
-                    Tasks.is_virtual == True,  # 是虚拟任务（包含奖金池任务）
+                    Tasks.is_virtual == True,  # 是虚拟任务
                     Tasks.status.notin_(['4', '5']),  # 排除已完成(4)和终止(5)状态，其他状态都可以
-                    Tasks.target_student_id.isnot(None)  # 有目标学生
+                    Tasks.target_student_id.isnot(None),  # 只处理有目标学生的虚拟任务
+                    Tasks.is_bonus_pool == False  # 排除奖金池任务，奖金池任务需要独立处理
                 )
             ).limit(max_batch_size).all()  # 限制批次大小
 
@@ -1000,6 +1008,56 @@ class VirtualOrderTaskScheduler:
         """手动触发自动确认任务检查（用于测试）"""
         logger.info("手动触发自动确认任务检查")
         await self.check_auto_confirm_tasks()
+    
+    async def check_bonus_pool_auto_confirm_tasks(self):
+        """检查并自动确认奖金池任务（每5分钟执行）"""
+        # 检查是否正在执行每日任务
+        if self.daily_task_running:
+            logger.info("每日凌晨任务正在执行中，跳过奖金池自动确认任务")
+            return
+        
+        db = SessionLocal()
+        try:
+            logger.info("开始执行奖金池任务自动确认检查（5分钟周期）...")
+            
+            # 导入配置服务
+            from .config_service import ConfigService
+            
+            # 获取配置
+            config_service = ConfigService(db)
+            auto_confirm_config = config_service.get_auto_confirm_config()
+            
+            # 检查是否启用自动确认
+            if not auto_confirm_config['enabled']:
+                logger.info("自动确认功能已禁用，跳过奖金池任务自动确认")
+                return
+            
+            # 创建奖金池自动确认管理器
+            bonus_auto_confirm_manager = BonusPoolAutoConfirmManager(db)
+            
+            # 执行奖金池任务自动确认
+            result = await bonus_auto_confirm_manager.check_bonus_pool_auto_confirm_tasks(
+                interval_hours=auto_confirm_config['interval_hours'],
+                max_batch_size=auto_confirm_config['max_batch_size']
+            )
+            
+            if result['success']:
+                logger.info(f"奖金池任务自动确认完成: 成功确认{result['confirmed_count']}个任务，"
+                           f"失败{result['failed_count']}个任务")
+                if result['failed_count'] > 0 and result.get('failed_details'):
+                    logger.warning(f"奖金池任务自动确认失败详情: {result['failed_details']}")
+            else:
+                logger.error(f"奖金池任务自动确认失败: {result['message']}")
+            
+        except Exception as e:
+            logger.error(f"检查奖金池任务自动确认失败: {str(e)}")
+        finally:
+            db.close()
+    
+    async def manual_check_bonus_pool_auto_confirm_tasks(self):
+        """手动触发奖金池任务自动确认检查（用于测试）"""
+        logger.info("手动触发奖金池任务自动确认检查")
+        await self.check_bonus_pool_auto_confirm_tasks()
 
     async def _process_in_progress_tasks(self, db: Session, target_date: date) -> Decimal:
         """
@@ -1170,3 +1228,7 @@ async def manual_check_expired():
 async def manual_check_auto_confirm():
     """手动检查自动确认任务的接口"""
     await scheduler.manual_check_auto_confirm_tasks()
+
+async def manual_check_bonus_pool_auto_confirm():
+    """手动检查奖金池任务自动确认的接口"""
+    await scheduler.manual_check_bonus_pool_auto_confirm_tasks()
