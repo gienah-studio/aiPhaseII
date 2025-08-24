@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, date, time
-from typing import List
+from typing import List, Dict, Any
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, text
@@ -74,11 +74,11 @@ class VirtualOrderTaskScheduler:
                     # 4. 执行自动确认任务检查（每5分钟）
                     if self.is_running:
                         await self.check_auto_confirm_tasks()
-                    
+
                     # 5. 执行奖金池任务自动确认检查（每5分钟）
                     if self.is_running:
                         await self.check_bonus_pool_auto_confirm_tasks()
-                    
+
                     # 6. 检查并生成奖金池任务（仅当无任务时启动）
                     if self.is_running:
                         await self.check_bonus_pool_task_generation()
@@ -303,7 +303,7 @@ class VirtualOrderTaskScheduler:
                 for i in range(expired_task_count):
                     # 每次生成1个任务，使用虚拟客服分配策略
                     result = service.generate_virtual_tasks_with_service_allocation(
-                        student_id, pool.student_name, task_amount, on_demand=True
+                        student_id, pool.student_name, base_task_amount, on_demand=True
                     )
 
                     if result['success'] and result['tasks']:
@@ -384,8 +384,8 @@ class VirtualOrderTaskScheduler:
                     logger.info(f"释放过期奖金池任务金额 {expired_amount} 回奖金池")
 
                     # 1:1替换生成新的奖金池任务
-                    generate_result = bonus_service.generate_bonus_pool_tasks(task_count=len(expired_tasks))
-                    logger.info(f"奖金池过期任务1:1替换结果: {generate_result}")
+                    generate_result = bonus_service.generate_bonus_pool_tasks()
+                    logger.info(f"奖金池过期任务替换结果: {generate_result}")
                 else:
                     logger.warning("未找到今日奖金池，无法释放过期任务金额")
 
@@ -912,10 +912,8 @@ class VirtualOrderTaskScheduler:
                     # 生成任务数量根据回收价值确定（每个任务平均金额作为参考）
                     if len(bonus_pool_tasks) > 0:
                         avg_task_amount = total_recycled_value / len(bonus_pool_tasks)
-                        # 基于回收价值生成1-2个新任务
-                        generate_result = bonus_service.generate_bonus_pool_tasks(
-                            task_count=min(2, max(1, len(bonus_pool_tasks)))
-                        )
+                        # 基于回收价值生成新任务
+                        generate_result = bonus_service.generate_bonus_pool_tasks()
                         logger.info(f"奖金池价值回收生成新任务结果: {generate_result}")
                 else:
                     logger.warning("未找到今日奖金池，无法回收价值")
@@ -990,16 +988,44 @@ class VirtualOrderTaskScheduler:
             service = VirtualOrderService(db)
             confirmed_count = 0
 
-            for submission in pending_submissions:
-                try:
-                    # 调用现有的任务完成方法
-                    result = service.update_virtual_task_completion(submission.task_id)
-                    logger.info(f"自动确认任务成功: task_id={submission.task_id}, student_id={result.get('student_id')}, commission={result.get('task_commission')}")
-                    confirmed_count += 1
+            if len(pending_submissions) == 1:
+                # 单任务：使用现有逻辑（完成任务→立即生成新任务）
+                logger.info("单个任务，使用即时处理模式")
+                for submission in pending_submissions:
+                    try:
+                        # 调用现有的任务完成方法（包含立即生成新任务）
+                        result = service.update_virtual_task_completion(submission.task_id)
+                        logger.info(f"自动确认任务成功: task_id={submission.task_id}, student_id={result.get('student_id')}, commission={result.get('task_commission')}")
+                        confirmed_count += 1
+                    except Exception as e:
+                        logger.error(f"自动确认任务失败: task_id={submission.task_id}, error={str(e)}")
+                        continue
+            else:
+                # 批量任务：两阶段处理（先全部完成→再统一生成）
+                logger.info(f"批量任务({len(pending_submissions)}个)，使用两阶段处理模式")
 
-                except Exception as e:
-                    logger.error(f"自动确认任务失败: task_id={submission.task_id}, error={str(e)}")
-                    continue
+                # 阶段1：只完成所有任务，不生成新任务
+                logger.info("阶段1：批量完成所有任务，不生成新任务")
+                affected_students = set()
+
+                for submission in pending_submissions:
+                    try:
+                        # 调用仅完成任务的方法（不生成新任务）
+                        result = await self.complete_task_without_generation(db, service, submission.task_id)
+                        if result['success']:
+                            logger.info(f"批量完成任务: task_id={submission.task_id}, student_id={result.get('student_id')}, commission={result.get('task_commission')}")
+                            confirmed_count += 1
+                            affected_students.add(result.get('student_id'))
+                        else:
+                            logger.error(f"批量完成任务失败: task_id={submission.task_id}, error={result.get('message')}")
+                    except Exception as e:
+                        logger.error(f"批量完成任务异常: task_id={submission.task_id}, error={str(e)}")
+                        continue
+
+                # 阶段2：基于最终补贴池状态，为受影响的学生统一生成新任务
+                if affected_students:
+                    logger.info(f"阶段2：为 {len(affected_students)} 个学生基于最终状态生成新任务")
+                    await self.batch_generate_tasks_for_students(db, service, affected_students)
 
             logger.info(f"自动确认任务完成，成功确认 {confirmed_count} 个任务")
 
@@ -1008,43 +1034,188 @@ class VirtualOrderTaskScheduler:
         finally:
             db.close()
 
+    async def complete_task_without_generation(self, db: Session, service: VirtualOrderService, task_id: int) -> Dict[str, Any]:
+        """
+        仅完成任务，不生成新任务（用于批量处理的第一阶段）
+        """
+        try:
+            # 查找虚拟任务
+            task = db.query(Tasks).filter(
+                and_(
+                    Tasks.id == task_id,
+                    Tasks.is_virtual.is_(True)
+                )
+            ).first()
+
+            if not task:
+                return {
+                    'success': False,
+                    'message': "未找到指定的虚拟任务"
+                }
+
+            # 检查任务状态是否可以完成
+            if task.status in ['4', '5']:
+                return {
+                    'success': False,
+                    'message': f"任务状态为{task.status}，无法重复完成"
+                }
+
+            # 更新任务状态为已完成
+            task.status = '4'
+            task.payment_status = '4'
+            task.value_recycled = True  # 标记为已回收，避免价值回收任务重复处理
+            task.updated_at = datetime.now()
+
+            # 查找对应的学生补贴池
+            pool = db.query(VirtualOrderPool).filter(
+                VirtualOrderPool.student_id == task.target_student_id,
+                VirtualOrderPool.is_deleted == False
+            ).first()
+
+            if not pool:
+                return {
+                    'success': False,
+                    'message': "未找到对应的学生补贴池"
+                }
+
+            # 获取学生返佣比例
+            rebate_rate = service.get_student_rebate_rate(task.target_student_id)
+            student_actual_income = task.commission * rebate_rate
+            remaining_task_value = task.commission - student_actual_income
+
+            # 更新学生补贴池（只更新统计，不生成新任务）
+            pool.completed_amount += task.commission
+            pool.consumed_subsidy += student_actual_income
+
+            # 将剩余价值加回补贴池
+            pool.remaining_amount += remaining_task_value
+            pool.updated_at = datetime.now()
+
+            logger.info(f"任务完成分析: 任务面值={task.commission}, 返佣比例={rebate_rate}, 学生收入={student_actual_income:.3f}, 剩余价值={remaining_task_value:.3f}")
+            logger.info(f"剩余价值 {remaining_task_value:.3f} 已加回补贴池，当前剩余: {pool.remaining_amount:.3f}")
+
+            return {
+                'success': True,
+                'task_id': task_id,
+                'student_id': task.target_student_id,
+                'task_commission': float(task.commission),
+                'student_actual_income': float(student_actual_income),
+                'remaining_task_value': float(remaining_task_value),
+                'pool_remaining': float(pool.remaining_amount)
+            }
+
+        except Exception as e:
+            logger.error(f"完成任务失败: task_id={task_id}, error={str(e)}")
+            return {
+                'success': False,
+                'message': f"完成任务失败: {str(e)}"
+            }
+
+    async def batch_generate_tasks_for_students(self, db: Session, service: VirtualOrderService, affected_students: set):
+        """
+        基于最终补贴池状态，为受影响的学生批量生成新任务（批量处理的第二阶段）
+        """
+        try:
+            logger.info("开始批量生成任务...")
+
+            for student_id in affected_students:
+                try:
+                    # 获取学生最终的补贴池状态
+                    pool = db.query(VirtualOrderPool).filter(
+                        VirtualOrderPool.student_id == student_id,
+                        VirtualOrderPool.is_deleted == False
+                    ).first()
+
+                    if not pool:
+                        logger.warning(f"未找到学生 {student_id} 的补贴池")
+                        continue
+
+                    # 检查是否已达到补贴上限
+                    if pool.consumed_subsidy >= pool.total_subsidy:
+                        logger.info(f"学生 {pool.student_name} 已达到补贴上限: 上限={pool.total_subsidy}元, 已获得={pool.consumed_subsidy}元, 停止生成新任务")
+                        pool.remaining_amount = Decimal('0')
+                        pool.updated_at = datetime.now()
+                        continue
+
+                    # 检查是否有剩余金额可以生成任务
+                    if pool.remaining_amount < Decimal('5'):
+                        logger.info(f"学生 {pool.student_name} 剩余金额不足({pool.remaining_amount}元)，跳过任务生成")
+                        continue
+
+                    logger.info(f"为学生 {pool.student_name} 生成新任务: 剩余补贴={pool.remaining_amount}元, 已消耗={pool.consumed_subsidy}元, 上限={pool.total_subsidy}元")
+
+                    # 计算可生成的任务总金额（不超过剩余补贴，不超过补贴上限）
+                    max_generate_amount = min(
+                        pool.remaining_amount,
+                        pool.total_subsidy - pool.consumed_subsidy
+                    )
+
+                    if max_generate_amount >= Decimal('5'):
+                        # 使用现有的任务生成逻辑
+                        result = service.generate_virtual_tasks_with_service_allocation(
+                            student_id, pool.student_name, max_generate_amount, on_demand=True
+                        )
+
+                        if result['success'] and result['tasks']:
+                            generated_amount = Decimal(str(result['total_amount']))
+                            pool.remaining_amount -= generated_amount
+
+                            if pool.remaining_amount < 0:
+                                pool.remaining_amount = Decimal('0')
+
+                            pool.updated_at = datetime.now()
+                            logger.info(f"为学生 {pool.student_name} 生成了 {len(result['tasks'])} 个任务，总金额: {generated_amount}，剩余: {pool.remaining_amount}")
+                        else:
+                            logger.warning(f"为学生 {pool.student_name} 生成任务失败: {result.get('message')}")
+                    else:
+                        logger.info(f"学生 {pool.student_name} 可生成金额不足5元({max_generate_amount}元)，跳过生成")
+
+                except Exception as e:
+                    logger.error(f"为学生 {student_id} 生成任务失败: {str(e)}")
+                    continue
+
+            logger.info("批量任务生成完成")
+
+        except Exception as e:
+            logger.error(f"批量生成任务失败: {str(e)}")
+
     async def manual_check_auto_confirm_tasks(self):
         """手动触发自动确认任务检查（用于测试）"""
         logger.info("手动触发自动确认任务检查")
         await self.check_auto_confirm_tasks()
-    
+
     async def check_bonus_pool_auto_confirm_tasks(self):
         """检查并自动确认奖金池任务（每5分钟执行）"""
         # 检查是否正在执行每日任务
         if self.daily_task_running:
             logger.info("每日凌晨任务正在执行中，跳过奖金池自动确认任务")
             return
-        
+
         db = SessionLocal()
         try:
             logger.info("开始执行奖金池任务自动确认检查（5分钟周期）...")
-            
+
             # 导入配置服务
             from .config_service import ConfigService
-            
+
             # 获取配置
             config_service = ConfigService(db)
             auto_confirm_config = config_service.get_auto_confirm_config()
-            
+
             # 检查是否启用自动确认
             if not auto_confirm_config['enabled']:
                 logger.info("自动确认功能已禁用，跳过奖金池任务自动确认")
                 return
-            
+
             # 创建奖金池自动确认管理器
             bonus_auto_confirm_manager = BonusPoolAutoConfirmManager(db)
-            
+
             # 执行奖金池任务自动确认
             result = await bonus_auto_confirm_manager.check_bonus_pool_auto_confirm_tasks(
                 interval_hours=auto_confirm_config['interval_hours'],
                 max_batch_size=auto_confirm_config['max_batch_size']
             )
-            
+
             if result['success']:
                 logger.info(f"奖金池任务自动确认完成: 成功确认{result['confirmed_count']}个任务，"
                            f"失败{result['failed_count']}个任务")
@@ -1052,17 +1223,17 @@ class VirtualOrderTaskScheduler:
                     logger.warning(f"奖金池任务自动确认失败详情: {result['failed_details']}")
             else:
                 logger.error(f"奖金池任务自动确认失败: {result['message']}")
-            
+
         except Exception as e:
             logger.error(f"检查奖金池任务自动确认失败: {str(e)}")
         finally:
             db.close()
-    
+
     async def manual_check_bonus_pool_auto_confirm_tasks(self):
         """手动触发奖金池任务自动确认检查（用于测试）"""
         logger.info("手动触发奖金池任务自动确认检查")
         await self.check_bonus_pool_auto_confirm_tasks()
-    
+
     async def check_bonus_pool_task_generation(self):
         """检查并生成奖金池任务（每5分钟执行）"""
         # 检查是否正在执行每日任务
@@ -1086,7 +1257,7 @@ class VirtualOrderTaskScheduler:
             # 使用奖金池服务检查和生成任务
             from .bonus_pool_service import BonusPoolService
             bonus_service = BonusPoolService(db)
-            
+
             # 获取今日奖金池
             today_pool = bonus_service.get_today_bonus_pool()
             if not today_pool:
@@ -1108,14 +1279,14 @@ class VirtualOrderTaskScheduler:
                     Tasks.status.notin_(['4', '5'])  # 排除已完成和终止状态
                 )
             ).count()
-            
+
             if existing_bonus_tasks > 0:
                 logger.info(f"今天已有 {existing_bonus_tasks} 个未完成奖金池任务，跳过生成")
                 return
 
             # 生成奖金池任务（1-2个任务）
             generate_result = bonus_service.generate_bonus_pool_tasks()
-            
+
             if generate_result.get('success'):
                 logger.info(f"奖金池任务生成成功: {generate_result}")
                 db.commit()
