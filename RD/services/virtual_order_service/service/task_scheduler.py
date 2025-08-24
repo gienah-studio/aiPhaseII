@@ -1022,17 +1022,42 @@ class VirtualOrderTaskScheduler:
                         logger.error(f"批量完成任务异常: task_id={submission.task_id}, error={str(e)}")
                         continue
 
+                # 提交阶段1的所有数据库更改
+                try:
+                    db.commit()
+                    logger.info(f"阶段1数据库提交成功，已完成 {confirmed_count} 个任务")
+                except Exception as e:
+                    logger.error(f"阶段1数据库提交失败: {str(e)}")
+                    db.rollback()
+                    raise
+
                 # 阶段2：基于最终补贴池状态，为受影响的学生统一生成新任务
                 if affected_students:
                     logger.info(f"阶段2：为 {len(affected_students)} 个学生基于最终状态生成新任务")
-                    await self.batch_generate_tasks_for_students(db, service, affected_students)
+                    try:
+                        await self.batch_generate_tasks_for_students(db, service, affected_students)
+                        # 提交阶段2的数据库更改
+                        db.commit()
+                        logger.info("阶段2数据库提交成功，新任务生成完成")
+                    except Exception as e:
+                        logger.error(f"阶段2执行失败: {str(e)}")
+                        db.rollback()
+                        raise
 
             logger.info(f"自动确认任务完成，成功确认 {confirmed_count} 个任务")
 
         except Exception as e:
             logger.error(f"检查自动确认任务失败: {str(e)}")
+            try:
+                db.rollback()
+                logger.info("已回滚数据库事务")
+            except Exception as rollback_error:
+                logger.error(f"数据库回滚失败: {str(rollback_error)}")
         finally:
-            db.close()
+            try:
+                db.close()
+            except Exception as close_error:
+                logger.error(f"数据库连接关闭失败: {str(close_error)}")
 
     async def complete_task_without_generation(self, db: Session, service: VirtualOrderService, task_id: int) -> Dict[str, Any]:
         """
