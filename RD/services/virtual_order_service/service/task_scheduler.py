@@ -78,6 +78,10 @@ class VirtualOrderTaskScheduler:
                     # 5. 执行奖金池任务自动确认检查（每5分钟）
                     if self.is_running:
                         await self.check_bonus_pool_auto_confirm_tasks()
+                    
+                    # 6. 检查并生成奖金池任务（仅当无任务时启动）
+                    if self.is_running:
+                        await self.check_bonus_pool_task_generation()
 
                     # 等待指定间隔时间
                     wait_seconds = self.check_interval_minutes * 60
@@ -1096,18 +1100,17 @@ class VirtualOrderTaskScheduler:
 
             logger.info(f"奖金池状态: 剩余{today_pool.remaining_amount}元，可以生成新任务")
 
-            # 检查最近5分钟内是否有新生成的奖金池任务，避免重复生成
-            recent_time = datetime.now() - timedelta(minutes=5)
-            recent_bonus_tasks = db.query(Tasks).filter(
+            # 检查今天是否已有未完成的奖金池任务，避免重复生成
+            existing_bonus_tasks = db.query(Tasks).filter(
                 and_(
                     Tasks.is_bonus_pool == True,
-                    Tasks.created_at >= recent_time,
-                    func.date(Tasks.created_at) == date.today()
+                    func.date(Tasks.created_at) == date.today(),
+                    Tasks.status.notin_(['4', '5'])  # 排除已完成和终止状态
                 )
             ).count()
             
-            if recent_bonus_tasks > 0:
-                logger.info(f"最近5分钟内已生成 {recent_bonus_tasks} 个奖金池任务，跳过重复生成")
+            if existing_bonus_tasks > 0:
+                logger.info(f"今天已有 {existing_bonus_tasks} 个未完成奖金池任务，跳过生成")
                 return
 
             # 生成奖金池任务（1-2个任务）
