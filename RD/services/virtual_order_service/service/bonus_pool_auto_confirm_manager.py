@@ -124,8 +124,15 @@ class BonusPoolAutoConfirmManager:
                     else:
                         failed_count += 1
                         failed_details.append(f"任务{submission.task_id}: {result.get('message', '未知错误')}")
-                        logger.error(f"奖金池任务自动确认失败: task_id={submission.task_id}, "
-                                    f"error={result.get('message')}")
+                        
+                        # 对已完成状态的重复处理使用warning级别，其他错误使用error级别
+                        error_message = result.get('message', '未知错误')
+                        if "已处理完成" in error_message or "状态为4" in error_message:
+                            logger.warning(f"奖金池任务重复处理跳过: task_id={submission.task_id}, "
+                                         f"reason={error_message}")
+                        else:
+                            logger.error(f"奖金池任务自动确认失败: task_id={submission.task_id}, "
+                                        f"error={error_message}")
                 
                 except Exception as e:
                     failed_count += 1
@@ -183,7 +190,7 @@ class BonusPoolAutoConfirmManager:
             if task.status in ['4', '5']:
                 return {
                     'success': False,
-                    'message': f"奖金池任务状态为{task.status}，无法重复完成"
+                    'message': f"奖金池任务状态为{task.status}，已处理完成（可能存在同任务的多个提交记录）"
                 }
             
             # 3. 更新任务状态为已完成（完全相同）
@@ -195,12 +202,42 @@ class BonusPoolAutoConfirmManager:
             # 4. 获取实际完成任务的学生ID和返佣比例
             if task.accepted_by:
                 try:
-                    actual_student_id = int(task.accepted_by)  # accepted_by是字符串，需要转换
-                except (ValueError, TypeError):
-                    logger.error(f"奖金池任务 {task.id} 的accepted_by字段无效: {task.accepted_by}")
+                    # accepted_by存储的是user_id，需要转换为student_id(roleId)
+                    user_id = int(task.accepted_by)  # accepted_by是字符串，需要转换
+                    
+                    # 通过user_id查找对应的student_id: user.id -> user.username -> userinfo.account -> userinfo.roleId
+                    from shared.models.original_user import OriginalUser
+                    
+                    user = self.db.query(OriginalUser).filter(OriginalUser.id == user_id).first()
+                    if not user:
+                        logger.error(f"奖金池任务 {task.id} 找不到user_id={user_id}的用户")
+                        return {
+                            'success': False,
+                            'message': f"找不到user_id={user_id}的用户信息"
+                        }
+                    
+                    userinfo = self.db.query(UserInfo).filter(UserInfo.account == user.username).first()
+                    if not userinfo:
+                        logger.error(f"奖金池任务 {task.id} 找不到username={user.username}对应的学生信息")
+                        return {
+                            'success': False,
+                            'message': f"找不到username={user.username}对应的学生信息"
+                        }
+                    
+                    actual_student_id = userinfo.roleId
+                    logger.info(f"奖金池任务 {task.id} 映射关系: user_id={user_id} -> username={user.username} -> student_id={actual_student_id} -> student_name={userinfo.name}")
+                    
+                except (ValueError, TypeError) as e:
+                    logger.error(f"奖金池任务 {task.id} 的accepted_by字段无效: {task.accepted_by}, error: {str(e)}")
                     return {
                         'success': False,
-                        'message': f"无法获取任务接取者信息: {task.accepted_by}"
+                        'message': f"无法解析任务接取者信息: {task.accepted_by}"
+                    }
+                except Exception as e:
+                    logger.error(f"奖金池任务 {task.id} 查找学生ID失败: {str(e)}")
+                    return {
+                        'success': False,
+                        'message': f"查找学生ID失败: {str(e)}"
                     }
             else:
                 return {
@@ -233,6 +270,24 @@ class BonusPoolAutoConfirmManager:
                            f"获得补贴={pool.bonus_pool_consumed_subsidy}")
             else:
                 logger.warning(f"未找到学生 {actual_student_id} 的补贴池记录，无法更新奖金池统计")
+            
+            # 6.5. 更新bonus_pool表的完成统计
+            try:
+                from .bonus_pool_service import BonusPoolService
+                bonus_service = BonusPoolService(self.db)
+                
+                # 获取任务创建日期的奖金池
+                task_date = task.created_at.date()
+                task_bonus_pool = bonus_service.get_today_bonus_pool(task_date)
+                if task_bonus_pool:
+                    # 更新奖金池的完成金额
+                    task_bonus_pool.completed_amount += task.commission
+                    task_bonus_pool.updated_at = datetime.now()
+                    logger.info(f"更新奖金池 {task_date} 完成统计: 完成金额={task_bonus_pool.completed_amount}")
+                else:
+                    logger.warning(f"未找到任务日期 {task_date} 的奖金池记录，无法更新完成统计")
+            except Exception as e:
+                logger.error(f"更新奖金池完成统计失败: {str(e)}")
             
             generated_tasks_info = []
             

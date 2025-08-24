@@ -43,6 +43,23 @@ class BonusPoolService:
         """检查奖金池功能是否启用"""
         return self.get_system_config('bonus_pool_enabled', 'true') == 'true'
 
+    def get_today_bonus_pool(self, pool_date: date = None) -> Optional[BonusPool]:
+        """
+        获取指定日期的奖金池（不创建，仅查询）
+        
+        Args:
+            pool_date: 奖金池日期，默认为今天
+            
+        Returns:
+            BonusPool: 奖金池对象，如果不存在则返回None
+        """
+        if pool_date is None:
+            pool_date = date.today()
+        
+        return self.db.query(BonusPool).filter(
+            BonusPool.pool_date == pool_date
+        ).first()
+
     def get_bonus_pool_summary(self, pool_date: date = None) -> Dict[str, Any]:
         """
         获取奖金池汇总信息（累计金额和可抢人数）

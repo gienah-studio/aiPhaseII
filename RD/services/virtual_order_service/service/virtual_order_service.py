@@ -1350,6 +1350,9 @@ class VirtualOrderService:
                     if agent:
                         agent_rebate = agent.agent_rebate
 
+                # 计算总消耗补贴金额（常规补贴 + 奖金池补贴）
+                total_consumed_subsidy = float(pool.consumed_subsidy) + float(pool.bonus_pool_consumed_subsidy or 0)
+
                 items.append({
                     'id': pool.id,
                     'student_id': pool.student_id,
@@ -1359,6 +1362,8 @@ class VirtualOrderService:
                     'allocated_amount': float(pool.allocated_amount),
                     'completed_amount': float(pool.completed_amount),  # 当日已完成
                     'consumed_subsidy': float(pool.consumed_subsidy),  # 当日实际消耗的补贴金额
+                    'bonus_pool_consumed_subsidy': float(pool.bonus_pool_consumed_subsidy or 0),  # 奖金池任务实际获得的补贴金额
+                    'total_consumed_subsidy': total_consumed_subsidy,  # 总消耗补贴金额
                     'completion_rate': round(completion_rate, 2),  # 完成率
                     'is_qualified': is_qualified,  # 是否达标
                     'agent_rebate': agent_rebate,  # 代理返佣比例

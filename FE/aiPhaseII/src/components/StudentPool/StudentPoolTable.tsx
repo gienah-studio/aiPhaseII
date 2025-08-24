@@ -218,6 +218,24 @@ const StudentPoolTable: React.FC<StudentPoolTableProps> = ({
       }
     },
     {
+      title: '总消耗补贴',
+      key: 'total_consumed_subsidy',
+      width: 130,
+      render: (_, record) => {
+        const totalAmount = safeNumber(getFieldValue(record, 'totalConsumedSubsidy', 'total_consumed_subsidy'));
+        return (
+          <span style={{ color: '#1890ff', fontWeight: 'bold' }}>
+            ¥{totalAmount.toFixed(2)}
+          </span>
+        );
+      },
+      sorter: (a, b) => {
+        const amountA = safeNumber(getFieldValue(a, 'totalConsumedSubsidy', 'total_consumed_subsidy'));
+        const amountB = safeNumber(getFieldValue(b, 'totalConsumedSubsidy', 'total_consumed_subsidy'));
+        return amountA - amountB;
+      }
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',

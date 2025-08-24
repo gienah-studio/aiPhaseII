@@ -425,6 +425,19 @@ const StudentModule: React.FC = () => {
       },
     },
     {
+      title: '总消耗补贴',
+      key: 'total_consumed_subsidy',
+      width: 130,
+      render: (_: any, record: StudentPoolItem) => {
+        const totalAmount = safeNumber(getFieldValue(record, 'totalConsumedSubsidy', 'total_consumed_subsidy'));
+        return (
+          <span style={{ color: '#1890ff', fontWeight: 'bold' }}>
+            ¥{totalAmount.toFixed(2)}
+          </span>
+        );
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',

@@ -59,6 +59,8 @@ class StudentPoolInfo(BaseModel):
     allocated_amount: Decimal
     completed_amount: Decimal
     consumed_subsidy: Decimal  # 实际消耗的补贴金额
+    bonus_pool_consumed_subsidy: Decimal  # 奖金池任务实际获得的补贴金额
+    total_consumed_subsidy: Decimal  # 总消耗补贴金额（consumed_subsidy + bonus_pool_consumed_subsidy）
     completion_rate: float  # 完成率
     is_qualified: bool  # 是否达标
     agent_rebate: Optional[str]

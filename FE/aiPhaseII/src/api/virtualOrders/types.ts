@@ -36,6 +36,8 @@ export interface StudentPoolItem {
   allocatedAmount?: number;
   completedAmount?: number;
   consumedSubsidy?: number;
+  bonusPoolConsumedSubsidy?: number;  // 奖金池任务实际获得的补贴金额
+  totalConsumedSubsidy?: number;      // 总消耗补贴金额
   completionRate?: number;
   agentRebate?: string;
   status: string;
