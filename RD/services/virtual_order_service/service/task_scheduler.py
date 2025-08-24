@@ -1079,7 +1079,7 @@ class VirtualOrderTaskScheduler:
             config_service = ConfigService(db)
             generation_config = config_service.get_virtual_task_generation_config()
 
-            if not generation_config['enabled'] or not generation_config['virtual_task_bonus_pool_enabled']:
+            if not generation_config['enabled'] or not generation_config['bonus_pool_task_enabled']:
                 logger.info("虚拟任务生成或奖金池任务已禁用，跳过奖金池任务生成")
                 return
 
