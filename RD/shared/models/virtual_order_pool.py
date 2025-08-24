@@ -15,6 +15,8 @@ class VirtualOrderPool(Base):
     allocated_amount = Column(Numeric(10, 2), default=0.00, comment="已分配金额")
     completed_amount = Column(Numeric(10, 2), default=0.00, comment="已完成任务金额")
     consumed_subsidy = Column(Numeric(10, 2), default=0.00, comment="当日实际消耗的补贴金额")
+    bonus_pool_completed_amount = Column(Numeric(10, 2), default=0.00, comment="奖金池任务已完成金额")
+    bonus_pool_consumed_subsidy = Column(Numeric(10, 2), default=0.00, comment="奖金池任务实际获得的补贴金额")
     status = Column(String(50), default='active', comment="状态：active-活跃, completed-已完成, expired-已过期")
     import_batch = Column(String(100), nullable=True, comment="导入批次号")
     is_deleted = Column(Boolean, default=False, comment="是否已删除")
