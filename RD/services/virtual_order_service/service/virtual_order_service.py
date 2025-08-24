@@ -2444,7 +2444,7 @@ class VirtualOrderService:
             # 更新任务状态为已完成
             task.status = '4'
             task.payment_status = '4'
-            task.value_recycled = True  # 标记价值已回收，避免重复处理
+            task.value_recycled = False  # 价值未回收，等待定时任务处理
             task.updated_at = datetime.now()
 
             # 查找对应的学生补贴池
@@ -2499,71 +2499,46 @@ class VirtualOrderService:
                 # 跨天完成的任务：只确认完成，不重新生成任务
                 logger.info(f"跨天任务完成: task_id={task.id}, 创建日期={task_date}, 当前日期={today}, 只确认完成不生成新任务")
             elif remaining_task_value > Decimal('0'):
-                # 当天任务且有剩余价值：只加回补贴池，不立即生成任务
-                # 让价值回收在独立的定时任务中处理，避免无限循环
+                # 当天任务且有剩余价值：检查补贴上限后决定是否生成任务
                 pool.remaining_amount += remaining_task_value
                 logger.info(f"剩余价值 {remaining_task_value} 已加回补贴池，当前剩余: {pool.remaining_amount}")
-                logger.info(f"价值回收将在定时任务中统一处理，不立即生成新任务")
 
-                # 禁用立即生成任务，避免无限循环
-                # if pool.remaining_amount > Decimal('0'):
-                #     try:
-                #         # 使用补贴池剩余金额生成任务，而不是直接使用剩余价值
-                #         allocation_result = self.allocator.allocate_tasks_to_services(
-                #             pool.remaining_amount, task.target_student_id, pool.student_name, on_demand=True
-                #         )
+                # 关键修复：检查学生是否已达到补贴上限
+                if pool.consumed_subsidy >= pool.total_subsidy:
+                    logger.info(f"学生 {pool.student_name} 已达到补贴上限: 上限={pool.total_subsidy}元, 已获得={pool.consumed_subsidy}元, 停止生成新任务")
+                    # 重置剩余金额为0，防止后续生成
+                    pool.remaining_amount = Decimal('0')
+                elif pool.remaining_amount > Decimal('0'):
+                    try:
+                        # 使用补贴池剩余金额生成任务，而不是直接使用剩余价值
+                        allocation_result = self.allocator.allocate_tasks_to_services(
+                            pool.remaining_amount, task.target_student_id, pool.student_name, on_demand=True
+                        )
 
-                        # 注释掉立即生成任务的逻辑，防止无限循环
-                        # if allocation_result.success:
-                        #     # 记录生成的任务信息
-                        #     generated_amount = Decimal('0')
-                        #     for allocated_task in allocation_result.allocated_tasks:
-                        #         generated_tasks_info.append({
-                        #             'task_id': allocated_task['id'],
-                        #             'amount': allocated_task['amount'],
-                        #             'founder_id': allocated_task['founder_id'],
-                        #             'founder': allocated_task['founder']
-                        #         })
-                        #         generated_amount += Decimal(str(allocated_task['amount']))
-                        #         logger.info(f"重新生成任务: ID={allocated_task['id']}, 金额={allocated_task['amount']}, "
-                        #                    f"分配给客服: {allocated_task['founder']}")
+                        if allocation_result.success:
+                            # 记录生成的任务信息
+                            generated_amount = Decimal('0')
+                            for allocated_task in allocation_result.allocated_tasks:
+                                generated_tasks_info.append({
+                                    'task_id': allocated_task['id'],
+                                    'amount': allocated_task['amount'],
+                                    'founder_id': allocated_task['founder_id'],
+                                    'founder': allocated_task['founder']
+                                })
+                                generated_amount += Decimal(str(allocated_task['amount']))
+                                logger.info(f"重新生成任务: ID={allocated_task['id']}, 金额={allocated_task['amount']}, "
+                                           f"分配给客服: {allocated_task['founder']}")
 
-                        #     # 更新补贴池剩余金额：扣减已生成的任务金额
-                        #     pool.remaining_amount -= generated_amount
-                        #     if pool.remaining_amount < 0:
-                        #         pool.remaining_amount = Decimal('0')
-                        #     logger.info(f"已生成任务总金额: {generated_amount}, 补贴池剩余: {pool.remaining_amount}")
-                        # else:
-                        #     logger.warning(f"使用虚拟客服分配策略重新生成任务失败: {allocation_result.error_message}")
-                        #     # 回退到原有方式（按需生成1-2个任务）
-                        #     new_task_amounts = self.calculate_on_demand_task_amounts(pool.remaining_amount)
-                        #     logger.info(f"回退到原有方式，补贴池剩余 {pool.remaining_amount} 分配为: {new_task_amounts}")
+                            # 更新补贴池剩余金额：扣减已生成的任务金额
+                            pool.remaining_amount -= generated_amount
+                            if pool.remaining_amount < 0:
+                                pool.remaining_amount = Decimal('0')
+                            logger.info(f"已生成任务总金额: {generated_amount}, 补贴池剩余: {pool.remaining_amount}")
+                        else:
+                            logger.warning(f"使用虚拟客服分配策略重新生成任务失败: {allocation_result.error_message}")
 
-                        #     generated_amount = Decimal('0')
-                        #     for amount in new_task_amounts:
-                        #         new_task = self.create_virtual_task(task.target_student_id, pool.student_name, amount)
-                        #         if new_task:
-                        #             self.db.add(new_task)
-                        #             generated_tasks_info.append({
-                        #                 'task_id': new_task.id,
-                        #                 'amount': float(amount),
-                        #                 'founder_id': 0,
-                        #                 'founder': '虚拟订单系统'
-                        #             })
-                        #             generated_amount += amount
-                        #             logger.info(f"回退方式生成任务: ID={new_task.id}, 金额={amount}")
-                        #         else:
-                        #             logger.warning(f"图片资源不足，无法生成 {amount} 元的任务，停止生成")
-                        #             break
-
-                        #     # 更新补贴池剩余金额
-                        #     pool.remaining_amount -= generated_amount
-                        #     if pool.remaining_amount < 0:
-                        #         pool.remaining_amount = Decimal('0')
-                        #     logger.info(f"回退方式生成任务总金额: {generated_amount}, 补贴池剩余: {pool.remaining_amount}")
-
-                # 任务生成已禁用，价值回收将在定时任务中处理
-                pass
+                    except Exception as e:
+                        logger.error(f"重新生成任务失败: {str(e)})")
 
             self.db.commit()
 
