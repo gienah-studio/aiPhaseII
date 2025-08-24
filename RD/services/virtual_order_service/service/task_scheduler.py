@@ -78,6 +78,10 @@ class VirtualOrderTaskScheduler:
                     # 5. 执行奖金池任务自动确认检查（每5分钟）
                     if self.is_running:
                         await self.check_bonus_pool_auto_confirm_tasks()
+                    
+                    # 6. 检查并生成奖金池任务（每5分钟）
+                    if self.is_running:
+                        await self.check_bonus_pool_task_generation()
 
                     # 等待指定间隔时间
                     wait_seconds = self.check_interval_minutes * 60
@@ -1058,6 +1062,58 @@ class VirtualOrderTaskScheduler:
         """手动触发奖金池任务自动确认检查（用于测试）"""
         logger.info("手动触发奖金池任务自动确认检查")
         await self.check_bonus_pool_auto_confirm_tasks()
+    
+    async def check_bonus_pool_task_generation(self):
+        """检查并生成奖金池任务（每5分钟执行）"""
+        # 检查是否正在执行每日任务
+        if self.daily_task_running:
+            logger.info("每日凌晨任务正在执行中，跳过奖金池任务生成检查")
+            return
+
+        db = SessionLocal()
+        try:
+            logger.info("开始执行奖金池任务生成检查（5分钟周期）...")
+
+            # 检查奖金池功能是否启用
+            from .config_service import ConfigService
+            config_service = ConfigService(db)
+            generation_config = config_service.get_virtual_task_generation_config()
+
+            if not generation_config['enabled'] or not generation_config['bonus_pool_enabled']:
+                logger.info("虚拟任务生成或奖金池任务已禁用，跳过奖金池任务生成")
+                return
+
+            # 使用奖金池服务检查和生成任务
+            from .bonus_pool_service import BonusPoolService
+            bonus_service = BonusPoolService(db)
+            
+            # 获取今日奖金池
+            today_pool = bonus_service.get_today_bonus_pool()
+            if not today_pool:
+                logger.info("未找到今日奖金池，跳过任务生成")
+                return
+
+            # 检查是否有足够的剩余金额生成任务
+            if today_pool.remaining_amount < Decimal('5'):
+                logger.info(f"奖金池剩余金额不足: {today_pool.remaining_amount}元 < 5元，跳过任务生成")
+                return
+
+            logger.info(f"奖金池状态: 剩余{today_pool.remaining_amount}元，可以生成新任务")
+
+            # 生成奖金池任务（1-2个任务）
+            generate_result = bonus_service.generate_bonus_pool_tasks()
+            
+            if generate_result.get('success'):
+                logger.info(f"奖金池任务生成成功: {generate_result}")
+                db.commit()
+            else:
+                logger.warning(f"奖金池任务生成失败: {generate_result.get('message')}")
+
+        except Exception as e:
+            logger.error(f"检查奖金池任务生成失败: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
 
     async def _process_in_progress_tasks(self, db: Session, target_date: date) -> Decimal:
         """
