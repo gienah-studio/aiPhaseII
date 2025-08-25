@@ -303,7 +303,7 @@ class VirtualOrderTaskScheduler:
                 for i in range(expired_task_count):
                     # 每次生成1个任务，使用虚拟客服分配策略
                     result = service.generate_virtual_tasks_with_service_allocation(
-                        student_id, pool.student_name, base_task_amount, on_demand=True
+                        student_id, pool.student_name, task_amount, on_demand=True
                     )
 
                     if result['success'] and result['tasks']:
